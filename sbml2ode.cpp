@@ -12,7 +12,10 @@
 /* headers from libsbml */
 #include <sbml/SBMLTypes.h>
 
+/* Own headers */
 #include "sbml/SBMLParser.h"
+#include "ode/ODESettings.h"
+
 
 int main(void) {
 	const char *modelfile = "data/BIOMD0000000010.xml";
@@ -21,6 +24,10 @@ int main(void) {
 	parser = new SBMLParser(modelfile);
 	doc = parser->getSBMLDocument();
 	parser->debugOutputSBML();
+	
+	// Now create settings object for integration of model
+	ODESettings *settings = new ODESettings();
+	cout << *settings;
 	
 	return EXIT_SUCCESS;
 }

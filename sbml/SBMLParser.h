@@ -20,6 +20,7 @@ private:
 	
 public:
 	SBMLParser(const char *filename);
+	~SBMLParser();
 	SBMLDocument *getSBMLDocument();
 	void debugOutputSBML();
 	

@@ -17,6 +17,11 @@ SBMLParser::SBMLParser(const char *filename) {
 	this->document = NULL;
 }
 
+SBMLParser::~SBMLParser()
+{
+	if (document != NULL)
+		delete document;
+}
 
 SBMLDocument *SBMLParser::getSBMLDocument() {
 	if (this->document == NULL)
@@ -28,10 +33,12 @@ SBMLDocument *SBMLParser::getSBMLDocument() {
 
 void SBMLParser::inputSBMLDocument()
 {
-	SBMLReader reader;
+	SBMLReader *reader;
 	unsigned long start, stop;
 	start = getCurrentMillis();
-	document = reader.readSBML(this->fname);
+	
+	reader = new SBMLReader();
+	document = reader->readSBML(this->fname);
 	stop = getCurrentMillis();
 	
 	unsigned int errors = document->getNumErrors();
@@ -44,6 +51,7 @@ void SBMLParser::inputSBMLDocument()
 	cout << endl;
 
 	document->printErrors(cerr);
+	delete reader; 
 }
 
 
