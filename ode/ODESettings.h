@@ -17,10 +17,10 @@ class ODESettings {
 public:
 	enum ODE_METHOD {ADAMS_MOULTON, BDF};
 	enum ITER_METHOD {NEWTON, FUNCTIONAL};
-	enum SENSITIVITY_METHOD {SIMULTANEOUS,STAGGERED, STAGGERED1}; 
+	enum SENSITIVITY_METHOD {SIMULTANEOUS, STAGGERED, STAGGERED1}; 
 	enum SENSITIVITY_ANALYSIS {NO_SENSITIVITY_ANALYSIS = 0, USE_SENSITIVITY_ANALYSIS=1};
 private:
-	double time; /**< Time to which model is integrated */
+	double endtime; /**< Time to which model is integrated (start time always 0) */
 	int printStep; /**< Number of output steps from 0 to 'time' */
 	double *timePoints; /**< Array of points for designated time course (optional) */
 	double absTolerance; /**< Absolute tolerance for ODE integration (CVODE library) */
@@ -40,6 +40,12 @@ public:
 	ODESettings();
 	~ODESettings();
 	friend ostream &operator<<(ostream &out, ODESettings set);
+	
+	// Setters
+	void setTimePointSeries(double t, int printstep);
+	void setAbsoluteError(double ae);
+	void setRelativeError(double re);
+	void setMaximumSteps(int maxn);
 	
 private:
 	void setDefaults();

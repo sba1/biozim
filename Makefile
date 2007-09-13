@@ -3,7 +3,7 @@ CXXFLAGS =	-O2 -g -Wall -fmessage-length=0
 
 ODE_OBJS = ode/ODESettings.o
 
-SBML_OBJS = sbml/SBMLParser.o
+SBML_OBJS = sbml/SBMLParser.o sbml/TimeCourse.o
 
 OBJS =		sbml2ode.o $(SBML_OBJS) $(ODE_OBJS)
 

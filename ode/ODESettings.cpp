@@ -27,7 +27,7 @@ ODESettings::~ODESettings()
  */
 void ODESettings::setDefaults()
 {
-	this->time = 1.0; 
+	this->endtime = 1.0; 
 	this->printStep = 10; 
 	this->absTolerance = 1e-18; 
 	this->relTolerance = 1e-10; 
@@ -41,7 +41,41 @@ void ODESettings::setDefaults()
 	this->steadyState = 0;  /* i.e., keep integrating even after event */
 	this->useJacobian = 1; 
 	this->storeResults = 1; 
+	this->timePoints = NULL;
+	setTimePointSeries(this->endtime,this->printStep);
 }
+
+
+
+/**
+ * Use this function to overrisde the defaults for
+ * endtime and printStep, and to recalculate the timeseries array. These
+ * will be the points for which CVODE calculates values.
+ */
+void ODESettings::setTimePointSeries(double t, int printstep)
+{
+	int i;
+	double *series;
+	this->endtime = t;
+	this->printStep = printstep;
+	if (printstep<2) {
+		cerr << "Error [" << __FILE__<<","<<__LINE__
+		<<"]: Printstep must have at least 2 time points" << endl;
+		exit(-1);
+	}
+	series = new double[printstep];
+	for (i=1; i<=printStep;++i) {
+		series[i-1] = i * t/printstep;
+	}
+	if (this->timePoints != NULL)
+		delete this->timePoints;
+	this->timePoints = series;
+	
+}
+
+void ODESettings::setAbsoluteError(double ae){this->absTolerance = ae;}
+void ODESettings::setRelativeError(double re){this->relTolerance = re; }
+void ODESettings::setMaximumSteps(int maxn) {this->maxStepN = maxn; }
 
 ostream &operator<<(ostream &out, ODESettings set)
 {
@@ -61,6 +95,39 @@ ostream &operator<<(ostream &out, ODESettings set)
 	else if (set.methodOfIteration == ODESettings::FUNCTIONAL) out << "Functional";
 	else out << "Error: Unknown Method";
 	out	<< endl;
+	out << "Sensitivity: ";
+	if (set.sensitivity == ODESettings::USE_SENSITIVITY_ANALYSIS) {
+		out << "yes" <<endl;
+		switch (set.sensitivityMethod) {
+		case ODESettings::SIMULTANEOUS:
+			out << "\tMethod: Simultaneous" << endl;
+			break;
+		case ODESettings::STAGGERED:
+			out << "\tMethod: Staggered" << endl;
+			break;
+		case ODESettings::STAGGERED1:
+					out << "\tMethod: Staggered1" << endl;
+					break;
+		default:
+			out << "Error: Unrecognized method"<<endl;
+		}
+	} else if (set.sensitivity == ODESettings::NO_SENSITIVITY_ANALYSIS)
+		out << "no" <<endl;
+	else out << "Error: Unknown Sensitivity Setting"<<endl;
+	out <<  "--Settings for sbml2ode--" << endl
+		<< "Jacobian: ";
+	if (set.useJacobian)
+		out << "generate Jacobian" << endl;
+	else 
+		out << "CVODE\'s internal approximation"<<endl;
+	out << "Event handling: ";
+	if (set.haltOnEvent)
+		out << "Stop integration"<<endl;
+	else
+		out << "Keep integrating"<<endl;
+	out << "Store results: ";
+	if (set.storeResults) out << "yes"<< endl;
+	else out << "no"<<endl;
 	return out;
 }
 

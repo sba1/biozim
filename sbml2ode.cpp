@@ -16,7 +16,9 @@
 #include "sbml/SBMLParser.h"
 #include "ode/ODESettings.h"
 
-
+/*
+ * For now, this main program tries to reproduce integrate.c from SBML_ODESolver
+ */
 int main(void) {
 	const char *modelfile = "data/BIOMD0000000010.xml";
 	SBMLParser *parser;
@@ -27,6 +29,14 @@ int main(void) {
 	
 	// Now create settings object for integration of model
 	ODESettings *settings = new ODESettings();
+	cout << *settings;
+	// Update some settings
+	double time = 1000.0;
+	int printstep = 100;
+	settings->setTimePointSeries(time, printstep);
+	settings->setAbsoluteError(1e-9);
+	settings->setRelativeError(1e-4);
+	settings->setMaximumSteps(1000);
 	cout << *settings;
 	
 	return EXIT_SUCCESS;
