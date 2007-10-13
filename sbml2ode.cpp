@@ -10,19 +10,31 @@
 
 /***********************************************/
 
+/* This is our state space */
+
 struct value *value_first;
 
 struct value
 {
+	/* The name of the value */
 	const char *name;
+	
+	/* The value's actual value */
 	double value;
+	
+	/* Reference to the SBML object */
 	const SBase *ref;
 
+	/* The node of ast describing the right part of the ODE */
 	ASTNode *node;
 
+	/* The next value */
 	struct value *next;
 };
 
+/*****************************************************
+ Add the given parameter as value
+******************************************************/
 static void value_add_parameter(Parameter *p)
 {
 	struct value *v = (struct value*)malloc(sizeof(*v));
@@ -40,6 +52,9 @@ static void value_add_parameter(Parameter *p)
 	value_first = v;
 }
 
+/*****************************************************
+ Add the given species as value
+******************************************************/
 static void value_add_species(Species *s)
 {
 	struct value *v = (struct value*)malloc(sizeof(*v));
@@ -57,6 +72,10 @@ static void value_add_species(Species *s)
 	value_first = v;
 }
 
+/*****************************************************
+ Return the actual value of the value given by the
+ name.
+******************************************************/
 static double value_get_value(const char *name)
 {
 	struct value *p = value_first;
@@ -70,6 +89,10 @@ static double value_get_value(const char *name)
 	return 0;
 }
 
+/*****************************************************
+ Finds the complete value object by the given
+ name.
+******************************************************/
 static struct value *value_get(const char *name)
 {
 	struct value *p = value_first;
@@ -83,6 +106,10 @@ static struct value *value_get(const char *name)
 	return NULL;
 }
 
+/*****************************************************
+ For the given SpeciesReference add the formula
+ to the right part of its ODE.
+******************************************************/
 static void value_add_reference(SpeciesReference *ref, const ASTNode *formula, ASTNodeType_t type)
 {
 	struct value *v;
@@ -277,6 +304,7 @@ int main(void)
 	numSpecies = model->getNumSpecies();
 	numReactions = model->getNumReactions();
 
+	/* Gather parameters of the reactions */
 	for (i=0;i<numReactions;i++)
 	{
 		unsigned int numParameter;
@@ -293,12 +321,14 @@ int main(void)
 		}
 	}
 
+	/* Gather species */
 	for (i=0;i<numSpecies;i++)
 	{
 		Species *sp = model->getSpecies(i);
 		value_add_species(sp);
 	}
 	
+	/* Construct ODEs */
 	for (i=0;i<numReactions;i++)
 	{
 		Reaction *reaction = model->getReaction(i);
