@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* headers from libsbml */
+/* Headers oflibsbml */
 #include <sbml/SBMLTypes.h>
+
+/* Headers of sundials */
+#include <nvector/nvector_serial.h>
+#include <cvode/cvode.h>
+#include <cvode/cvode_dense.h>
 
 /* Own headers */
 #include "sbml/SBMLParser.h"
