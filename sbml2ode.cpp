@@ -340,7 +340,7 @@ int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 /**********************************************************
  Main Entry
 ***********************************************************/
-int main(void)
+int main(int argc, char **argv)
 {
 	const char *modelfile;
 	unsigned int numSpecies;
@@ -350,7 +350,13 @@ int main(void)
 	SBMLParser *parser;
 	SBMLDocument *doc;
 	
-	modelfile = "data/basic-model1-forward-l2.xml";
+	if (argc < 2)
+	{
+		fprintf(stderr,"No SBML-file specified!\n");
+		exit(-1);
+	}
+
+	modelfile = argv[1];//"data/basic-model1-forward-l2.xml";
 	
 	parser = new SBMLParser(modelfile);
 	doc = parser->getSBMLDocument();
