@@ -27,6 +27,9 @@ struct value
 	/* The value's actual value */
 	double value;
 	
+	/* Whether fixed */
+	int fixed;
+	
 	/* Reference to the SBML object */
 	const SBase *ref;
 
@@ -74,6 +77,7 @@ static void value_add_species(Species *s)
 	v->value = s->getInitialAmount();
 	v->ref = s;
 	v->next = value_first;
+	v->fixed = s->getBoundaryCondition();
 	value_first = v;
 }
 
@@ -120,34 +124,62 @@ static void value_add_reference(SpeciesReference *ref, const ASTNode *formula, A
 	struct value *v;
 	if ((v = value_get(ref->getSpecies().c_str())))
 	{
-		ASTNode *prev, *minus, *copy;
+		ASTNode *prev, *minus, *copy, *stoich;
 		
 		if (!(prev = v->node))
 		{
 			if (!(prev = new ASTNode(AST_REAL)))
-			{
-				fprintf(stderr,"Not enough memory!\n");
-				exit(-1);
-			}
+				goto nomem;
+
 			prev->setValue(0.0);
 		}
 
 		if (!(minus = new ASTNode(type)))
+			goto nomem;
+
+
+		/* Extract stoichiometry factor */
+		const struct StoichiometryMath *stoichMath = ref->getStoichiometryMath();
+		if (stoichMath != NULL)
 		{
-			fprintf(stderr,"Not enough memory!\n");
-			exit(-1);
+			if (!(stoich = stoichMath->getMath()->deepCopy()))
+				goto nomem;
+		} else stoich = NULL;
+
+		if (ref->getStoichiometry() != 1.0)
+		{
+			if (!(stoich = new ASTNode(AST_REAL)))
+				goto nomem;
+			stoich->setValue(ref->getStoichiometry());
 		}
 
 		if (!(copy = formula->deepCopy()))
+			goto nomem;
+
+		/* Build component with stoichiometry fractor (if present) */
+		ASTNode *component;
+		if (stoich != NULL)
 		{
-			fprintf(stderr,"Not enough memory!\n");
-			exit(-1);
+			if (!(component = new ASTNode(AST_TIMES)))
+				goto nomem;
+
+			component->addChild(stoich);
+			component->addChild(copy);
+		} else
+		{
+			component = copy;
 		}
-		
+
 		minus->addChild(prev);
-		minus->addChild(copy);
+		minus->addChild(component);
 		v->node = minus;
 	}
+	
+	return;
+
+	nomem:
+		fprintf(stderr,"Not enough memory!");
+		exit(-1);
 }
 
 /***********************************************/
@@ -282,35 +314,19 @@ static double evaluate(const ASTNode *node)
 	return 0;
 }
 
+/*********************************************************
+ The right hand side of the ODEs
+**********************************************************/
 int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 {
 	unsigned int i;
 	struct value *v;
 
-//	NV_Ith_S(ydot,0) = NV_Ith_S(y,0); 
-//	printf("%lf\n",t);
-
-/*	unsigned int num_values = 0;
-	struct value *v = value_first;
-	while (v)
-	{
-		if (v->node)
-			cout << v->name << "' = " << SBML_formulaToString(v->node) << endl;
-		v = v->next;
-		num_values++;
-	}
-
-	struct value **values = (struct value**)malloc(sizeof(*values)*num_values);
-	if (!values)
-*/
-
-//	printf("t=%g\n",t);
 	/* Update values */
 	i = 0;
 	v = value_first;
 	while (v)
 	{
-//		printf("yold(%s)=%g ynew(%s)=%g\n",v->name,v->value,v->name,NV_Ith_S(y,i));
 		v->value = NV_Ith_S(y,i);
 		v = v->next;
 		i++;
@@ -321,14 +337,11 @@ int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 	v = value_first;
 	while (v)
 	{
-		if (v->node)
-		{
+		if (v->node && !v->fixed)
 			NV_Ith_S(ydot,i) = evaluate(v->node);
-		} else
-		{
+		else
 			NV_Ith_S(ydot,i) = 0;
-		}
-//		printf("ydot(%s)=%g\n",v->name,NV_Ith_S(ydot,i));
+
 		v = v->next;
 		i++;
 	}
@@ -499,8 +512,6 @@ int main(int argc, char **argv)
 		realtype tret;
 		N_Vector yout = N_VNew_Serial(num_values);
 		
-//		flag = CVode(cvode_mem,tmax,yout,&tret,CV_NORMAL);
-
 		cout << endl;
 		cout << "Results" << endl;
 
