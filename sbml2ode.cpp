@@ -443,6 +443,8 @@ int main(void)
 	
 	
 	{
+		double tmax = 10;
+
 		cout << endl;
 		cout << "Intial values:" << endl;
 		for (i=0;i<num_values;i++)
@@ -491,18 +493,26 @@ int main(void)
 		realtype tret;
 		N_Vector yout = N_VNew_Serial(num_values);
 		
-		flag = CVode(cvode_mem,10,yout,&tret,CV_NORMAL);
-		if (flag < 0)
-		{
-			fprintf(stderr,"CVode failed\n");
-			exit(-1);
-		}
+//		flag = CVode(cvode_mem,tmax,yout,&tret,CV_NORMAL);
 
 		cout << endl;
-		cout << "Results at t=" << tret << endl;
-		for (i=0;i<num_values;i++)
+		cout << "Results" << endl;
+
+		for (i=1;i<=100;i++)
 		{
-			cout << values[i]->name << "=" << NV_Ith_S(yout,i) << endl;
+			flag = CVode(cvode_mem,tmax*i/100,yout,&tret,CV_NORMAL);
+			if (flag < 0)
+			{
+				fprintf(stderr,"CVode failed\n");
+				exit(-1);
+			}
+
+			cout << tret;
+			for (j=0;j<num_values;j++)
+			{
+				cout << "\t" << NV_Ith_S(yout,j);
+			}
+			cout << endl;
 		}
 	}
 
