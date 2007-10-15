@@ -155,7 +155,7 @@ static void value_add_reference(SpeciesReference *ref, const ASTNode *formula, A
 
 static double evaluate(const ASTNode *node)
 {
-	printf("%p type=%d isOper=%d isNumber=%d\n",node,node->getType(),node->isOperator(),node->isNumber());
+//	printf("%p type=%d isOper=%d isNumber=%d\n",node,node->getType(),node->isOperator(),node->isNumber());
 
 	switch (node->getType())
 	{
@@ -165,7 +165,7 @@ static double evaluate(const ASTNode *node)
 		case	AST_DIVIDE: return evaluate(node->getLeftChild()) / evaluate(node->getRightChild());
 //		case	AST_POWER: break;
 //		case	AST_INTEGER: break;
-//		case	AST_REAL: break;
+		case	AST_REAL: return node->getReal(); break;
 //		case	AST_REAL_E: break;
 //		case	AST_RATIONAL: break;
 		case	AST_NAME: return value_get_value(node->getName()); break;
@@ -275,12 +275,67 @@ static double evaluate(const ASTNode *node)
 				printf("Unknown\n");
 				break;
 		default:
-				printf("default\n");
+				printf("ASTNode of type %d not handled!\n",node->getType());
 				break;
 	}
 	
 	return 0;
 }
+
+int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
+{
+	unsigned int i;
+	struct value *v;
+
+//	NV_Ith_S(ydot,0) = NV_Ith_S(y,0); 
+//	printf("%lf\n",t);
+
+/*	unsigned int num_values = 0;
+	struct value *v = value_first;
+	while (v)
+	{
+		if (v->node)
+			cout << v->name << "' = " << SBML_formulaToString(v->node) << endl;
+		v = v->next;
+		num_values++;
+	}
+
+	struct value **values = (struct value**)malloc(sizeof(*values)*num_values);
+	if (!values)
+*/
+
+//	printf("t=%g\n",t);
+	/* Update values */
+	i = 0;
+	v = value_first;
+	while (v)
+	{
+//		printf("yold(%s)=%g ynew(%s)=%g\n",v->name,v->value,v->name,NV_Ith_S(y,i));
+		v->value = NV_Ith_S(y,i);
+		v = v->next;
+		i++;
+	}
+
+	/* Calculate ydot */
+	i = 0;
+	v = value_first;
+	while (v)
+	{
+		if (v->node)
+		{
+			NV_Ith_S(ydot,i) = evaluate(v->node);
+		} else
+		{
+			NV_Ith_S(ydot,i) = 0;
+		}
+//		printf("ydot(%s)=%g\n",v->name,NV_Ith_S(ydot,i));
+		v = v->next;
+		i++;
+	}
+	
+	return 0;
+}
+
 
 /**********************************************************
  Main Entry
@@ -357,20 +412,103 @@ int main(void)
 		}
 	}
 
-#if 0
+	/* Print out ODEs */
+	cout << "ODEs:" << endl;
+	unsigned int num_values = 0;
 	struct value *v = value_first;
 	while (v)
 	{
 		if (v->node)
-		{
-			cout << v->name << ": " << SBML_formulaToString(v->node) << endl;
-		}
+			cout << v->name << "' = " << SBML_formulaToString(v->node) << endl;
+		v = v->next;
+		num_values++;
+	}
+
+	/* Convert to an array for easier access */
+	struct value **values = (struct value**)malloc(sizeof(*values)*num_values);
+	if (!values)
+	{
+		fprintf(stderr,"Not enough memory\n");
+		exit(-1);
+	}
+	
+	v = value_first;
+	i = 0;
+	while (v)
+	{
+		values[i++] = v;
 		v = v->next;
 	}
-#endif
 	
+	
+	
+	{
+		cout << endl;
+		cout << "Intial values:" << endl;
+		for (i=0;i<num_values;i++)
+		{
+			cout << values[i]->name << "=" << values[i]->value << endl;
+		}
+
+		void *cvode_mem;
+		int flag;
+		realtype *real;
+		N_Vector vec;
+
+		if (!(real = (realtype*)malloc(sizeof(*real)*num_values)))
+		{
+			fprintf(stderr,"Not enough memory!\n");
+			exit(-1);
+		}
+
+		for (i=0;i<num_values;i++)
+			real[i] = values[i]->value;
+
+		if (!(cvode_mem = CVodeCreate(CV_ADAMS,CV_FUNCTIONAL)))
+		{
+			fprintf(stderr,"CVodeCreate failed!\n");
+			exit(-1);
+		}
+
+		vec = N_VMake_Serial(num_values,real);
+
+		realtype abstol = 1e-20;
+
+		flag = CVodeMalloc(cvode_mem, f, 0, vec, CV_SS, 1.0e-14, &abstol);
+		if (flag < 0)
+		{
+			fprintf(stderr,"CVodeMalloc failed\n");
+			exit(-1);
+		}
+
+		flag = CVDense(cvode_mem,num_values);
+		if (flag < 0)
+		{
+			fprintf(stderr,"CVDense failed\n");
+			exit(-1);
+		}
+
+		realtype tret;
+		N_Vector yout = N_VNew_Serial(num_values);
+		
+		flag = CVode(cvode_mem,10,yout,&tret,CV_NORMAL);
+		if (flag < 0)
+		{
+			fprintf(stderr,"CVode failed\n");
+			exit(-1);
+		}
+
+		cout << endl;
+		cout << "Results at t=" << tret << endl;
+		for (i=0;i<num_values;i++)
+		{
+			cout << values[i]->name << "=" << NV_Ith_S(yout,i) << endl;
+		}
+	}
+
 	// Now create settings object for integration of model
-	ODESettings *settings = new ODESettings();
+
+/*	ODESettings *settings = new ODESettings();
 	cout << *settings;
 	// Update some settings
 	double time = 1000.0;
@@ -380,7 +518,7 @@ int main(void)
 	settings->setRelativeError(1e-4);
 	settings->setMaximumSteps(1000);
 	cout << *settings;
-	
+*/
 	return EXIT_SUCCESS;
 }
 
