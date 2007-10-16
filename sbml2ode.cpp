@@ -74,24 +74,8 @@ int main(int argc, char **argv)
 	integration_settings_init(&settings);
 	
 	simulation_integrate(sc,&settings);
-
 	simulation_context_free(sc);
 	
-
-	// Now create settings object for integration of model
-
-/*	ODESettings *settings = new ODESettings();
-	cout << *settings;
-	// Update some settings
-	double time = 1000.0;
-	int printstep = 100;
-	settings->setTimePointSeries(time, printstep);
-	settings->setAbsoluteError(1e-9);
-	settings->setRelativeError(1e-4);
-	settings->setMaximumSteps(1000);
-	cout << *settings;
-*/
-
 	return EXIT_SUCCESS;
 	
 bailout:
