@@ -64,13 +64,16 @@ static void parse_args(int argc, char *argv[])
 int main(int argc, char **argv)
 {
 	struct simulation_context *sc;
+	struct integration_settings settings;
 
 	parse_args(argc, argv);
 
 	if (!(sc = simulation_context_create_from_sbml_file(model_filename)))
 		goto bailout;
 
-	simulation_integrate(sc);
+	integration_settings_init(&settings);
+	
+	simulation_integrate(sc,&settings);
 
 	simulation_context_free(sc);
 	

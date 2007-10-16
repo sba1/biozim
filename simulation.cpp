@@ -504,11 +504,11 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 /**********************************************************
  Integrates the simulation.
 ***********************************************************/
-void simulation_integrate(struct simulation_context *sc)
+void simulation_integrate(struct simulation_context *sc, struct integration_settings *settings)
 {
 	unsigned i,j;
-	double tmax = 5;
-	unsigned int steps = 10;
+	double tmax = settings->time;
+	unsigned int steps = settings->steps;
 
 	unsigned int num_values = sc->num_values;
 	struct value **values = sc->values;
@@ -601,4 +601,17 @@ void simulation_integrate(struct simulation_context *sc)
 void simulation_context_free(struct simulation_context *sc)
 {
 	free(sc);
+}
+
+/**********************************************************
+ Initializes the settings with some default values. 
+***********************************************************/
+void integration_settings_init(struct integration_settings *settings)
+{
+	memset(settings,sizeof(*settings),0);
+
+	settings->time = 10;
+	settings->steps = 20;
+	settings->absolute_error = 1e-9;
+	settings->relative_error = 1e-5;
 }
