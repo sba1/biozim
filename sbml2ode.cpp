@@ -81,23 +81,6 @@ static void value_add_species(Species *s)
 }
 
 /*****************************************************
- Return the actual value of the value given by the
- name.
-******************************************************/
-static double value_get_value(const char *name)
-{
-	struct value *p = value_first;
-	while (p)
-	{
-		if (!strcmp(name,p->name))
-			return p->value;
-		p = p->next;
-	}
-	fprintf(stderr,"value %s not found\n",name);
-	return 0;
-}
-
-/*****************************************************
  Finds the complete value object by the given
  name.
 ******************************************************/
@@ -184,24 +167,248 @@ static void value_add_reference(SpeciesReference *ref, const ASTNode *formula, A
 /***********************************************/
 
 
-static double evaluate(const ASTNode *node)
+/********************************************************/
+
+static const char *model_filename;
+static int verbose;
+
+/*************************************************
+ Displays the program's usage and exits
+*************************************************/
+static void usage(char *name)
+{
+	fprintf(stderr, "usage: %s [OPTIONS] SBML-File ...\n"
+			"Loads the given SBML-File and performs a simulation run.\n"
+			"Specify '-' to read from stdin.\n"
+			"\t-h, --help      show this help and quit.\n",
+			name);
+
+	exit(1);
+}
+
+
+/*************************************************
+ Parse command line args
+*************************************************/
+static void parse_args(int argc, char *argv[])
+{
+	int i;
+	int filename_given = 0;
+
+	for (i=1;i<argc;i++)
+	{
+		if (!strcmp(argv[i],"-h") && !strcmp(argv[i],"--help"))
+		{
+			usage(argv[0]);
+			exit(-1);
+		} else if (!strcmp(argv[i],"--verbose"))
+		{
+			verbose = 1;
+		} else
+		{
+			filename_given = 1;
+			if (strcmp(argv[i],"-"))
+				model_filename = argv[i];
+		}
+	}
+	
+	if (!filename_given)
+	{
+		fprintf(stderr,"No filename has been specifed!\n");
+		usage(argv[0]);
+		exit(-1);		
+	}
+}
+
+/******************************************************/
+
+struct simulation_context
+{
+	unsigned int num_values;
+	struct value **values;
+};
+
+/*************************************************
+ Builds the value map.
+*************************************************/
+void simulation_context_build_value_map(struct simulation_context *sc)
+{
+	int i, num_values;
+	struct value **values;
+	struct value *v;
+
+	/* Convert to an array for easier access */
+
+	num_values = 0;
+	v = value_first;
+	while (v)
+	{
+		v = v->next;
+		num_values++;
+	}
+
+	if (!(values = (struct value**)malloc(sizeof(*values)*num_values)))
+	{
+		fprintf(stderr,"Not enough memory\n");
+		exit(-1);
+	}
+
+	i = 0;
+
+	v = value_first;
+	while (v)
+	{
+		values[i++] = v;
+		v = v->next;
+	}
+	
+	sc->values = values;
+	sc->num_values = num_values;
+}
+
+/*************************************************
+ Create a new simulation from an SBML file.
+
+ On failure returns NULL.
+*************************************************/
+struct simulation_context *simulation_context_create_from_sbml_file(const char *filename)
+{
+	SBMLParser *parser = NULL;
+	SBMLDocument *doc;
+	Model *model;
+
+	unsigned int numSpecies;
+	unsigned int numReactions;
+	unsigned int i,j;
+	
+	struct simulation_context *sc;
+
+	if (!(sc = (struct simulation_context*)malloc(sizeof(*sc))))
+	{
+		fprintf(stderr,"Could not allocate memory\n");
+		goto bailout;
+	}
+
+	if (!(parser = new SBMLParser(filename)))
+	{
+		fprintf(stderr,"Could not parse \"%s\"\n",filename);
+		goto bailout;
+	}
+
+	if (!(doc = parser->getSBMLDocument()))
+		goto bailout;
+
+	if (verbose)
+		parser->debugOutputSBML();
+
+	if (!(model = doc->getModel()))
+		return 0;
+
+	numSpecies = model->getNumSpecies();
+	numReactions = model->getNumReactions();
+
+	/* Gather parameters of the reactions */
+	for (i=0;i<numReactions;i++)
+	{
+		unsigned int numParameter;
+
+		Reaction *reaction = model->getReaction(i);
+		KineticLaw *kineticLaw = reaction->getKineticLaw();
+
+		numParameter = kineticLaw->getNumParameters();
+		
+		for (j=0;j<numParameter;j++)
+		{
+			Parameter *p = kineticLaw->getParameter(j);
+			value_add_parameter(p);
+		}
+	}
+
+	/* Gather species */
+	for (i=0;i<numSpecies;i++)
+	{
+		Species *sp = model->getSpecies(i);
+		value_add_species(sp);
+	}
+
+	simulation_context_build_value_map(sc);
+
+	/* Construct ODEs */
+	for (i=0;i<numReactions;i++)
+	{
+		Reaction *reaction = model->getReaction(i);
+		KineticLaw *kineticLaw = reaction->getKineticLaw();
+
+		const ASTNode *formula = kineticLaw->getMath();
+		
+		unsigned int reactants = reaction->getNumReactants();
+		unsigned int products = reaction->getNumProducts();
+
+		for (j=0;j<reactants;j++)
+		{
+			SpeciesReference *ref = reaction->getReactant(j);
+			value_add_reference(ref, formula, AST_MINUS);
+		}
+		
+		for (j=0;j<products;j++)
+		{
+			SpeciesReference *ref = reaction->getProduct(j);
+			value_add_reference(ref, formula, AST_PLUS);
+		}
+	}
+
+	if (verbose)
+	{
+		/* Print out ODEs */
+		printf("ODEs:\n");
+
+		for (unsigned int i=0;i<sc->num_values;i++)
+		{
+			struct value *v = sc->values[i];
+			if (v->node)
+				printf("%s' = %s\n",v->name,SBML_formulaToString(v->node));
+		}
+	}
+
+//	delete parser;
+	return sc;
+	
+bailout:
+	if (parser) delete parser;
+	return NULL;
+}
+
+static double simulation_context_get_value(struct simulation_context *sc, const char *symbol)
+{
+	unsigned int i;
+	
+	for (i=0;i<sc->num_values;i++)
+	{
+		if (!strcmp(symbol,sc->values[i]->name))
+			return sc->values[i]->value;
+	}
+	fprintf(stderr,"***Warning***: Symbol \"%s\" not found!\n",symbol); 
+	return 0;
+}
+
+static double evaluate(struct simulation_context *sc, const ASTNode *node)
 {
 //	printf("%p type=%d isOper=%d isNumber=%d\n",node,node->getType(),node->isOperator(),node->isNumber());
 
 	switch (node->getType())
 	{
 	
-		case	AST_PLUS: return evaluate(node->getLeftChild()) + evaluate(node->getRightChild());
-		case	AST_MINUS:  return evaluate(node->getLeftChild()) - evaluate(node->getRightChild());
-		case	AST_TIMES: return evaluate(node->getLeftChild()) * evaluate(node->getRightChild());
-		case	AST_DIVIDE: return evaluate(node->getLeftChild()) / evaluate(node->getRightChild());
+		case	AST_PLUS: return evaluate(sc, node->getLeftChild()) + evaluate(sc, node->getRightChild());
+		case	AST_MINUS:  return evaluate(sc, node->getLeftChild()) - evaluate(sc, node->getRightChild());
+		case	AST_TIMES: return evaluate(sc, node->getLeftChild()) * evaluate(sc, node->getRightChild());
+		case	AST_DIVIDE: return evaluate(sc, node->getLeftChild()) / evaluate(sc, node->getRightChild());
 		case	AST_FUNCTION_POWER:
-		case	AST_POWER: return pow(evaluate(node->getLeftChild()),evaluate(node->getRightChild()));
+		case	AST_POWER: return pow(evaluate(sc, node->getLeftChild()),evaluate(sc, node->getRightChild()));
 		case	AST_INTEGER: break;
 		case	AST_REAL: return node->getReal(); break;
 //		case	AST_REAL_E: break;
 ///		case	AST_RATIONAL: break;
-		case	AST_NAME: return value_get_value(node->getName()); break;
+		case	AST_NAME: return simulation_context_get_value(sc, node->getName()); break;
 //		case	AST_NAME_TIME: break;
 //		case	AST_CONSTANT_E: break;
 //		case	AST_CONSTANT_FALSE: break;
@@ -322,227 +529,147 @@ int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 {
 	unsigned int i;
 	struct value *v;
+	struct simulation_context *sc = (struct simulation_context*)f_data;
 
 	/* Update values */
-	i = 0;
-	v = value_first;
-	while (v)
+	for (i=0;i<sc->num_values;i++)
 	{
+		v = sc->values[i];
 		v->value = NV_Ith_S(y,i);
-		v = v->next;
-		i++;
 	}
 
 	/* Calculate ydot */
-	i = 0;
-	v = value_first;
-	while (v)
+	for (i=0;i<sc->num_values;i++)
 	{
+		v = sc->values[i];
 		if (v->node && !v->fixed)
-			NV_Ith_S(ydot,i) = evaluate(v->node);
+			NV_Ith_S(ydot,i) = evaluate(sc, v->node);
 		else
 			NV_Ith_S(ydot,i) = 0;
-
-		v = v->next;
-		i++;
 	}
 	
 	return 0;
 }
 
 
+/**********************************************************
+ Integrates the simulation.
+***********************************************************/
+void simulation_integrate(struct simulation_context *sc)
+{
+	unsigned i,j;
+	double tmax = 5;
+	unsigned int steps = 10;
+
+	unsigned int num_values = sc->num_values;
+	struct value **values = sc->values;
+
+	if (verbose)
+	{
+		printf("\nInitial values:\n");
+		for (i=0;i<num_values;i++)
+		{
+			printf(" %s = %g\n",sc->values[i]->name, sc->values[i]->value);
+		}
+	}
+
+	void *cvode_mem;
+	int flag;
+	realtype *real;
+	N_Vector vec;
+
+	if (!(real = (realtype*)malloc(sizeof(*real)*num_values)))
+	{
+		fprintf(stderr,"Not enough memory!\n");
+		exit(-1);
+	}
+
+	for (i=0;i<num_values;i++)
+		real[i] = values[i]->value;
+
+	if (!(cvode_mem = CVodeCreate(CV_ADAMS,CV_FUNCTIONAL)))
+	{
+		fprintf(stderr,"CVodeCreate failed!\n");
+		exit(-1);
+	}
+
+	vec = N_VMake_Serial(num_values,real);
+
+	realtype abstol = 1e-20;
+
+	flag = CVodeMalloc(cvode_mem, f, 0, vec, CV_SS, 1.0e-14, &abstol);
+	if (flag < 0)
+	{
+		fprintf(stderr,"CVodeMalloc failed\n");
+		exit(-1);
+	}
+
+	/* Set the passed user data */
+	CVodeSetFdata(cvode_mem,sc);
+
+	flag = CVDense(cvode_mem,num_values);
+	if (flag < 0)
+	{
+		fprintf(stderr,"CVDense failed\n");
+		exit(-1);
+	}
+
+	realtype tret;
+	N_Vector yout = N_VNew_Serial(num_values);
+	
+	cout << endl;
+	cout << "Results" << endl;
+
+	cout << "Time";
+
+	for (j=0;j<num_values;j++)
+	{
+		cout << "\t" << values[j]->name;
+	}
+	cout << endl;
+	
+	for (i=1;i<=steps;i++)
+	{
+		flag = CVode(cvode_mem,tmax*i/steps,yout,&tret,CV_NORMAL);
+		if (flag < 0)
+		{
+			fprintf(stderr,"CVode failed\n");
+			exit(-1);
+		}
+
+		cout << tret;
+		for (j=0;j<num_values;j++)
+		{
+			cout << "\t" << NV_Ith_S(yout,j);
+		}
+		cout << endl;
+	}
+}
+
+/**********************************************************
+ Frees memory associated with a simulation.
+***********************************************************/
+void simulation_context_free(struct simulation_context *sc)
+{
+	free(sc);
+}
 
 /**********************************************************
  Main Entry
 ***********************************************************/
 int main(int argc, char **argv)
 {
-	const char *modelfile;
-	unsigned int numSpecies;
-	unsigned int numReactions;
-	unsigned int i,j;
+	struct simulation_context *sc;
 
-	SBMLParser *parser;
-	SBMLDocument *doc;
+	parse_args(argc, argv);
+
+	if (!(sc = simulation_context_create_from_sbml_file(model_filename)))
+		goto bailout;
+
+	simulation_integrate(sc);
+
+	simulation_context_free(sc);
 	
-	if (argc < 2)
-	{
-		fprintf(stderr,"No SBML-file specified!\n");
-		exit(-1);
-	}
-
-	modelfile = argv[1];
-	
-	parser = new SBMLParser(modelfile);
-	doc = parser->getSBMLDocument();
-	parser->debugOutputSBML();
-
-	Model *model;
-	
-	if (!(model = doc->getModel()))
-		return 0;
-
-	numSpecies = model->getNumSpecies();
-	numReactions = model->getNumReactions();
-
-	/* Gather parameters of the reactions */
-	for (i=0;i<numReactions;i++)
-	{
-		unsigned int numParameter;
-
-		Reaction *reaction = model->getReaction(i);
-		KineticLaw *kineticLaw = reaction->getKineticLaw();
-
-		numParameter = kineticLaw->getNumParameters();
-		
-		for (j=0;j<numParameter;j++)
-		{
-			Parameter *p = kineticLaw->getParameter(j);
-			value_add_parameter(p);
-		}
-	}
-
-	/* Gather species */
-	for (i=0;i<numSpecies;i++)
-	{
-		Species *sp = model->getSpecies(i);
-		value_add_species(sp);
-	}
-	
-	/* Construct ODEs */
-	for (i=0;i<numReactions;i++)
-	{
-		Reaction *reaction = model->getReaction(i);
-		KineticLaw *kineticLaw = reaction->getKineticLaw();
-
-		const ASTNode *formula = kineticLaw->getMath();
-		
-		unsigned int reactants = reaction->getNumReactants();
-		unsigned int products = reaction->getNumProducts();
-
-		for (j=0;j<reactants;j++)
-		{
-			SpeciesReference *ref = reaction->getReactant(j);
-			value_add_reference(ref, formula, AST_MINUS);
-		}
-		
-		for (j=0;j<products;j++)
-		{
-			SpeciesReference *ref = reaction->getProduct(j);
-			value_add_reference(ref, formula, AST_PLUS);
-		}
-	}
-
-	/* Print out ODEs */
-	cout << "ODEs:" << endl;
-	unsigned int num_values = 0;
-	struct value *v = value_first;
-	while (v)
-	{
-		if (v->node)
-			cout << v->name << "' = " << SBML_formulaToString(v->node) << endl;
-		v = v->next;
-		num_values++;
-	}
-
-	/* Convert to an array for easier access */
-	struct value **values = (struct value**)malloc(sizeof(*values)*num_values);
-	if (!values)
-	{
-		fprintf(stderr,"Not enough memory\n");
-		exit(-1);
-	}
-	
-	v = value_first;
-	i = 0;
-	while (v)
-	{
-		values[i++] = v;
-		v = v->next;
-	}
-	
-	
-	
-	{
-		double tmax = 20;
-		unsigned int steps = 1000;
-
-		cout << endl;
-		cout << "Intial values:" << endl;
-		for (i=0;i<num_values;i++)
-		{
-			cout << values[i]->name << "=" << values[i]->value << endl;
-		}
-
-		void *cvode_mem;
-		int flag;
-		realtype *real;
-		N_Vector vec;
-
-		if (!(real = (realtype*)malloc(sizeof(*real)*num_values)))
-		{
-			fprintf(stderr,"Not enough memory!\n");
-			exit(-1);
-		}
-
-		for (i=0;i<num_values;i++)
-			real[i] = values[i]->value;
-
-		if (!(cvode_mem = CVodeCreate(CV_ADAMS,CV_FUNCTIONAL)))
-		{
-			fprintf(stderr,"CVodeCreate failed!\n");
-			exit(-1);
-		}
-
-		vec = N_VMake_Serial(num_values,real);
-
-		realtype abstol = 1e-20;
-
-		flag = CVodeMalloc(cvode_mem, f, 0, vec, CV_SS, 1.0e-14, &abstol);
-		if (flag < 0)
-		{
-			fprintf(stderr,"CVodeMalloc failed\n");
-			exit(-1);
-		}
-
-		flag = CVDense(cvode_mem,num_values);
-		if (flag < 0)
-		{
-			fprintf(stderr,"CVDense failed\n");
-			exit(-1);
-		}
-
-		realtype tret;
-		N_Vector yout = N_VNew_Serial(num_values);
-		
-		cout << endl;
-		cout << "Results" << endl;
-
-		cout << "Time";
-
-		for (j=0;j<num_values;j++)
-		{
-			cout << "\t" << values[j]->name;
-		}
-		cout << endl;
-		
-		for (i=1;i<=steps;i++)
-		{
-			flag = CVode(cvode_mem,tmax*i/steps,yout,&tret,CV_NORMAL);
-			if (flag < 0)
-			{
-				fprintf(stderr,"CVode failed\n");
-				exit(-1);
-			}
-
-			cout << tret;
-			for (j=0;j<num_values;j++)
-			{
-				cout << "\t" << NV_Ith_S(yout,j);
-			}
-			cout << endl;
-		}
-	}
 
 	// Now create settings object for integration of model
 
@@ -557,7 +684,11 @@ int main(int argc, char **argv)
 	settings->setMaximumSteps(1000);
 	cout << *settings;
 */
+
 	return EXIT_SUCCESS;
+	
+bailout:
+	return EXIT_FAILURE;
 }
 
 
