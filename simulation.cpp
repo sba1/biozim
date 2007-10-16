@@ -544,9 +544,9 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 	vec = N_VMake_Serial(num_values,real);
 
-	realtype abstol = 1e-20;
+	realtype abstol = settings->absolute_error;
 
-	flag = CVodeMalloc(cvode_mem, f, 0, vec, CV_SS, 1.0e-14, &abstol);
+	flag = CVodeMalloc(cvode_mem, f, 0, vec, CV_SS, settings->relative_error, &abstol);
 	if (flag < 0)
 	{
 		fprintf(stderr,"CVodeMalloc failed\n");
