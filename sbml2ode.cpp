@@ -30,9 +30,6 @@ struct value
 	/* Whether fixed */
 	int fixed;
 	
-	/* Reference to the SBML object */
-	const SBase *ref;
-
 	/* The node of ast describing the right part of the ODE */
 	ASTNode *node;
 
@@ -55,7 +52,6 @@ static void value_add_parameter(Parameter *p)
 
 	v->name = p->getId().c_str();
 	v->value = p->getValue();
-	v->ref = p;
 	v->next = value_first;
 	value_first = v;
 }
@@ -74,8 +70,11 @@ static void value_add_species(Species *s)
 	memset(v,0,sizeof(*v));
 
 	v->name = s->getId().c_str();
-	v->value = s->getInitialAmount();
-	v->ref = s;
+	
+	if (s->isSetInitialAmount())
+		v->value = s->getInitialAmount();
+	else
+		v->value = s->getInitialConcentration();
 	v->next = value_first;
 	v->fixed = s->getBoundaryCondition();
 	value_first = v;
@@ -191,15 +190,17 @@ static double evaluate(const ASTNode *node)
 
 	switch (node->getType())
 	{
+	
 		case	AST_PLUS: return evaluate(node->getLeftChild()) + evaluate(node->getRightChild());
 		case	AST_MINUS:  return evaluate(node->getLeftChild()) - evaluate(node->getRightChild());
 		case	AST_TIMES: return evaluate(node->getLeftChild()) * evaluate(node->getRightChild());
 		case	AST_DIVIDE: return evaluate(node->getLeftChild()) / evaluate(node->getRightChild());
-//		case	AST_POWER: break;
-//		case	AST_INTEGER: break;
+		case	AST_FUNCTION_POWER:
+		case	AST_POWER: return pow(evaluate(node->getLeftChild()),evaluate(node->getRightChild()));
+		case	AST_INTEGER: break;
 		case	AST_REAL: return node->getReal(); break;
 //		case	AST_REAL_E: break;
-//		case	AST_RATIONAL: break;
+///		case	AST_RATIONAL: break;
 		case	AST_NAME: return value_get_value(node->getName()); break;
 //		case	AST_NAME_TIME: break;
 //		case	AST_CONSTANT_E: break;
@@ -266,7 +267,7 @@ static double evaluate(const ASTNode *node)
 				break;
 		case		AST_FUNCTION_PIECEWISE: 	
 				break;
-		case		AST_FUNCTION_POWER: 	
+		case		AST_FUNCTION_POWER:
 				break;
 		case		AST_FUNCTION_ROOT: 	
 				break;
@@ -350,6 +351,7 @@ int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 }
 
 
+
 /**********************************************************
  Main Entry
 ***********************************************************/
@@ -369,7 +371,7 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	modelfile = argv[1];//"data/basic-model1-forward-l2.xml";
+	modelfile = argv[1];
 	
 	parser = new SBMLParser(modelfile);
 	doc = parser->getSBMLDocument();
@@ -462,7 +464,8 @@ int main(int argc, char **argv)
 	
 	
 	{
-		double tmax = 10;
+		double tmax = 20;
+		unsigned int steps = 1000;
 
 		cout << endl;
 		cout << "Intial values:" << endl;
@@ -515,9 +518,17 @@ int main(int argc, char **argv)
 		cout << endl;
 		cout << "Results" << endl;
 
-		for (i=1;i<=100;i++)
+		cout << "Time";
+
+		for (j=0;j<num_values;j++)
 		{
-			flag = CVode(cvode_mem,tmax*i/100,yout,&tret,CV_NORMAL);
+			cout << "\t" << values[j]->name;
+		}
+		cout << endl;
+		
+		for (i=1;i<=steps;i++)
+		{
+			flag = CVode(cvode_mem,tmax*i/steps,yout,&tret,CV_NORMAL);
 			if (flag < 0)
 			{
 				fprintf(stderr,"CVode failed\n");
