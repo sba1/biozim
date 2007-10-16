@@ -1,13 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
-/* Headers oflibsbml */
-#include <sbml/SBMLTypes.h>
-
-/* Headers of sundials */
-#include <nvector/nvector_serial.h>
-#include <cvode/cvode.h>
-#include <cvode/cvode_dense.h>
+#include <string.h>
 
 /* Own headers */
 #include "simulation.h"
