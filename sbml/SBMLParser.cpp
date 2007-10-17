@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 
-
+extern int verbose;
 
 SBMLParser::SBMLParser(const char *filename) {
 	this->fname = filename;
@@ -42,13 +42,16 @@ void SBMLParser::inputSBMLDocument()
 	stop = getCurrentMillis();
 	
 	unsigned int errors = document->getNumErrors();
-	
-	cout << endl;
-	cout << "            filename: "<< this->fname            << endl;
-	cout << "           file size: "<< getFileSize(fname)     << endl;
-	cout << "      read time (ms): " << stop - start          << endl;
-	cout << " validation error(s): " << errors                << endl;
-	cout << endl;
+
+	if (verbose)
+	{
+		cout << endl;
+		cout << "            filename: "<< this->fname            << endl;
+		cout << "           file size: "<< getFileSize(fname)     << endl;
+		cout << "      read time (ms): " << stop - start          << endl;
+		cout << " validation error(s): " << errors                << endl;
+		cout << endl;
+	}
 
 	document->printErrors(cerr);
 	delete reader; 
