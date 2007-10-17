@@ -513,6 +513,9 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	unsigned int num_values = sc->num_values;
 	struct value **values = sc->values;
 
+	/* Used for the sample function */
+	double *value_space;
+
 	if (verbose)
 	{
 		printf("\nInitial values:\n");
@@ -520,6 +523,12 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		{
 			printf(" %s = %g\n",sc->values[i]->name, sc->values[i]->value);
 		}
+	}
+
+	if (!(value_space = (double*)malloc(sizeof(double)*sc->num_values)))
+	{
+		fprintf(stderr,"Not enough memory!\n");
+		exit(-1);
 	}
 
 	void *cvode_mem;
@@ -533,8 +542,12 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		exit(-1);
 	}
 
+	/* Initial values */
 	for (i=0;i<num_values;i++)
+	{
 		real[i] = values[i]->value;
+		value_space[i] = real[i];
+	}
 
 	if (!(cvode_mem = CVodeCreate(CV_ADAMS,CV_FUNCTIONAL)))
 	{
@@ -565,17 +578,12 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 	realtype tret;
 	N_Vector yout = N_VNew_Serial(num_values);
-	
-	cout << endl;
-	cout << "Results" << endl;
 
-	cout << "Time";
-
-	for (j=0;j<num_values;j++)
+	if (settings->sample_func)
 	{
-		cout << "\t" << values[j]->name;
+		if (!settings->sample_func(0.0,num_values,value_space))
+			goto out;
 	}
-	cout << endl;
 	
 	for (i=1;i<=steps;i++)
 	{
@@ -586,13 +594,19 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 			exit(-1);
 		}
 
-		cout << tret;
 		for (j=0;j<num_values;j++)
+			value_space[j] = NV_Ith_S(yout,j);
+
+		if (settings->sample_func)
 		{
-			cout << "\t" << NV_Ith_S(yout,j);
+			if (!settings->sample_func(tmax*i/steps,num_values,value_space))
+				goto out;
 		}
-		cout << endl;
+
 	}
+	
+	out:
+	;
 }
 
 /**********************************************************

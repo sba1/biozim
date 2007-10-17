@@ -59,6 +59,22 @@ static void parse_args(int argc, char *argv[])
 }
 
 /**********************************************************
+ Our sampling function.
+***********************************************************/
+int sample(double time, int num_values, double *values)
+{
+	printf("%g",time);
+	
+	for (int i=0;i<num_values;i++)
+	{
+		printf("\t%g",values[i]);
+	}
+	printf("\n");
+
+	return 1;
+}
+
+/**********************************************************
  Main Entry
 ***********************************************************/
 int main(int argc, char **argv)
@@ -72,6 +88,7 @@ int main(int argc, char **argv)
 		goto bailout;
 
 	integration_settings_init(&settings);
+	settings.sample_func = sample;
 	
 	simulation_integrate(sc,&settings);
 	simulation_context_free(sc);

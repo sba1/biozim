@@ -15,6 +15,9 @@ struct integration_settings
 
 	double absolute_error;
 	double relative_error;
+
+	/* The sampling function. It is called for every sampled time point */
+	int (*sample_func)(double time, int num_values, double *values);
 };
 
 void integration_settings_init(struct integration_settings *settings);
