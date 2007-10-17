@@ -32,7 +32,7 @@ struct value *value_first;
 struct value
 {
 	/* The name of the value */
-	const char *name;
+	char *name;
 	
 	/* The value's actual value */
 	double value;
@@ -60,7 +60,11 @@ static void value_add_parameter(Parameter *p)
 	}
 	memset(v,0,sizeof(*v));
 
-	v->name = p->getId().c_str();
+	if (!(v->name = strdup(p->getId().c_str())))
+	{
+		fprintf(stderr,"Not enough memory!\n");
+		exit(-1);
+	}
 	v->value = p->getValue();
 	v->next = value_first;
 	value_first = v;
@@ -79,8 +83,12 @@ static void value_add_species(Species *s)
 	}
 	memset(v,0,sizeof(*v));
 
-	v->name = s->getId().c_str();
-	
+	if (!(v->name = strdup(s->getId().c_str())))
+	{
+		fprintf(stderr,"Not enough memory!\n");
+		exit(-1);
+	}
+		
 	if (s->isSetInitialAmount())
 		v->value = s->getInitialAmount();
 	else
@@ -319,7 +327,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		}
 	}
 
-//	delete parser;
+	delete parser;
 	return sc;
 	
 bailout:
@@ -531,10 +539,10 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		exit(-1);
 	}
 
-	void *cvode_mem;
+	void *cvode_mem = NULL;
 	int flag;
-	realtype *real;
-	N_Vector vec;
+	realtype *real = NULL;
+	N_Vector vec = NULL;
 
 	if (!(real = (realtype*)malloc(sizeof(*real)*num_values)))
 	{
@@ -605,8 +613,13 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 	}
 	
-	out:
-	;
+out:
+	/* Cleanup */
+	if (yout) N_VDestroy_Serial(yout);
+	if (vec) N_VDestroy_Serial(vec);
+	if (cvode_mem) CVodeFree(&cvode_mem);
+	free(real);
+	free(value_space);
 }
 
 /**********************************************************
@@ -614,6 +627,14 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 ***********************************************************/
 void simulation_context_free(struct simulation_context *sc)
 {
+	for (unsigned int i=0;i<sc->num_values;i++)
+	{
+		free(sc->values[i]->name);
+		delete sc->values[i]->node;
+		free(sc->values[i]);
+	}
+
+	if (sc->values) free(sc->values);
 	free(sc);
 }
 
