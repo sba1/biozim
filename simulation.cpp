@@ -236,6 +236,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 	unsigned int numSpecies;
 	unsigned int numReactions;
+	unsigned int numParameters;
 	unsigned int i,j;
 	
 	struct simulation_context *sc;
@@ -263,6 +264,14 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 	numSpecies = model->getNumSpecies();
 	numReactions = model->getNumReactions();
+	numParameters = model->getNumParameters();
+
+	/* Gather global parameters */
+	for (i=0;i<numParameters;i++)
+	{
+		Parameter *p = model->getParameter(i);
+		value_add_parameter(p);
+	}
 
 	/* Gather parameters of the reactions */
 	for (i=0;i<numReactions;i++)
@@ -629,8 +638,8 @@ void simulation_context_free(struct simulation_context *sc)
 {
 	for (unsigned int i=0;i<sc->num_values;i++)
 	{
-		free(sc->values[i]->name);
 		delete sc->values[i]->node;
+		free(sc->values[i]->name);
 		free(sc->values[i]);
 	}
 

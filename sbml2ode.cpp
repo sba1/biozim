@@ -89,8 +89,10 @@ int main(int argc, char **argv)
 
 	integration_settings_init(&settings);
 	settings.sample_func = sample;
-	
+	settings.absolute_error = 1e-15;
+	settings.relative_error = 1e-15;
 	simulation_integrate(sc,&settings);
+
 	simulation_context_free(sc);
 	
 	return EXIT_SUCCESS;
