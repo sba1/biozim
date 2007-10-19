@@ -372,7 +372,7 @@ static double evaluate(struct simulation_context *sc, const ASTNode *node)
 		case	AST_DIVIDE: return evaluate(sc, node->getLeftChild()) / evaluate(sc, node->getRightChild());
 		case	AST_FUNCTION_POWER:
 		case	AST_POWER: return pow(evaluate(sc, node->getLeftChild()),evaluate(sc, node->getRightChild()));
-		case	AST_INTEGER: break;
+		case	AST_INTEGER: return node->getInteger(); break;
 		case	AST_REAL: return node->getReal(); break;
 //		case	AST_REAL_E: break;
 ///		case	AST_RATIONAL: break;
