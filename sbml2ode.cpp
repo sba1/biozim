@@ -81,16 +81,33 @@ int main(int argc, char **argv)
 {
 	struct simulation_context *sc;
 	struct integration_settings settings;
+	char **names;
 
 	parse_args(argc, argv);
 
 	if (!(sc = simulation_context_create_from_sbml_file(model_filename)))
 		goto bailout;
 
+	if ((names = simulation_get_value_names(sc)))
+	{
+		unsigned int i;
+		printf("Time");
+		for (i=0;names[i];i++)
+		{
+			printf("\t");
+			printf(names[i]);
+		}
+		printf("\n");
+	}
+
+	
 	integration_settings_init(&settings);
 	settings.sample_func = sample;
 	settings.absolute_error = 1e-15;
 	settings.relative_error = 1e-15;
+	settings.time = 20;
+	settings.steps = 1000;
+
 	simulation_integrate(sc,&settings);
 
 	simulation_context_free(sc);

@@ -18,6 +18,8 @@ struct simulation_context
 {
 	unsigned int num_values;
 	struct value **values;
+	
+	char **names;
 };
 
 extern int verbose;
@@ -517,6 +519,25 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 	return 0;
 }
 
+/**********************************************************
+ Returns an NULL-terminated array with names of the
+ variables. Memory is freed upon simulation_context_free()
+ call. 
+***********************************************************/
+char **simulation_get_value_names(struct simulation_context *sc)
+{
+	unsigned int i;
+
+	if (sc->names) return sc->names;
+	
+	if (!(sc->names = (char**)malloc(sizeof(char*)*(sc->num_values+1))))
+		return NULL;
+
+	for (i=0;i<sc->num_values;i++)
+		sc->names[i] = sc->values[i]->name;
+	sc->names[i] = NULL;
+	return sc->names;
+}
 
 /**********************************************************
  Integrates the simulation.
@@ -602,6 +623,9 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 			goto out;
 	}
 	
+	CVodeSetMaxNumSteps(cvode_mem,500000);
+	
+	
 	for (i=1;i<=steps;i++)
 	{
 		flag = CVode(cvode_mem,tmax*i/steps,yout,&tret,CV_NORMAL);
@@ -636,14 +660,20 @@ out:
 ***********************************************************/
 void simulation_context_free(struct simulation_context *sc)
 {
-	for (unsigned int i=0;i<sc->num_values;i++)
+	if (sc->values)
 	{
-		delete sc->values[i]->node;
-		free(sc->values[i]->name);
-		free(sc->values[i]);
+		for (unsigned int i=0;i<sc->num_values;i++)
+		{
+			delete sc->values[i]->node;
+			free(sc->values[i]->name);
+			free(sc->values[i]);
+		}
+		free(sc->values);
 	}
+	
+	if (sc->names)
+		free(sc->names);
 
-	if (sc->values) free(sc->values);
 	free(sc);
 }
 
