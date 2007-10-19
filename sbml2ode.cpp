@@ -99,7 +99,6 @@ int main(int argc, char **argv)
 		}
 		printf("\n");
 	}
-
 	
 	integration_settings_init(&settings);
 	settings.sample_func = sample;
