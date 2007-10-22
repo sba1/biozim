@@ -18,8 +18,11 @@ struct simulation_context
 {
 	unsigned int num_values;
 	struct value **values;
-	
+
 	char **names;
+
+	unsigned int num_unfixed;
+	int *unfixed; /* Contains indices to values */
 };
 
 extern int verbose;
@@ -248,6 +251,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		fprintf(stderr,"Could not allocate memory\n");
 		goto bailout;
 	}
+	memset(sc,sizeof(*sc),0);
 
 	if (!(parser = new SBMLParser(filename)))
 	{
@@ -338,6 +342,29 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		}
 	}
 
+	/* Find unfixed variables and build a table therefrom */
+	for (i=0;i<sc->num_values;i++)
+	{
+		struct value *v = sc->values[i];
+		if (!v->node || v->fixed)
+			continue;
+		sc->num_unfixed++;
+	}
+
+	if (!(sc->unfixed = (int*)malloc(sizeof(int)*sc->num_unfixed)))
+	{
+		fprintf(stderr,"Could not parse \"%s\"\n",filename);
+		goto bailout;
+	}
+
+	for (i=0,j=0;i<sc->num_values;i++)
+	{
+		struct value *v = sc->values[i];
+		if (!v->node || v->fixed)
+			continue;
+		sc->unfixed[j++] = i;
+	}
+
 	delete parser;
 	return sc;
 	
@@ -372,8 +399,8 @@ static double evaluate(struct simulation_context *sc, const ASTNode *node)
 		case	AST_DIVIDE: return evaluate(sc, node->getLeftChild()) / evaluate(sc, node->getRightChild());
 		case	AST_FUNCTION_POWER:
 		case	AST_POWER: return pow(evaluate(sc, node->getLeftChild()),evaluate(sc, node->getRightChild()));
-		case	AST_INTEGER: return node->getInteger(); break;
-		case	AST_REAL: return node->getReal(); break;
+		case	AST_INTEGER: return node->getInteger();
+		case	AST_REAL: return node->getReal();
 //		case	AST_REAL_E: break;
 ///		case	AST_RATIONAL: break;
 		case	AST_NAME: return simulation_context_get_value(sc, node->getName()); break;
@@ -490,6 +517,31 @@ static double evaluate(struct simulation_context *sc, const ASTNode *node)
 	return 0;
 }
 
+static void print(struct simulation_context *sc, const ASTNode *node)
+{
+//	printf("%p type=%d isOper=%d isNumber=%d\n",node,node->getType(),node->isOperator(),node->isNumber());
+
+	switch (node->getType())
+	{
+		case	AST_PLUS: printf("(");print(sc, node->getLeftChild()); printf("+"); print(sc, node->getRightChild()); printf(")");break;
+		case	AST_MINUS: print(sc, node->getLeftChild()); printf("-"); print(sc, node->getRightChild()); break;
+		case	AST_TIMES: print(sc, node->getLeftChild()); printf("*");print(sc, node->getRightChild()); break;
+		case	AST_DIVIDE: print(sc, node->getLeftChild()); printf("/");print(sc, node->getRightChild()); break;
+		case	AST_FUNCTION_POWER:
+		case	AST_POWER: print(sc, node->getLeftChild()); printf("^"); print(sc, node->getRightChild()); break;
+		case	AST_INTEGER: printf("%ld",node->getInteger()); break;
+		case	AST_REAL: printf("%g",node->getReal()); break;
+		case	AST_NAME:  printf("%g",simulation_context_get_value(sc, node->getName())); break;
+
+		case	AST_UNKNOWN:
+				printf("Unknown\n");
+				break;
+		default:
+				printf("ASTNode of type %d not handled!\n",node->getType());
+				break;
+	}
+}
+
 /*********************************************************
  The right hand side of the ODEs
 **********************************************************/
@@ -515,6 +567,17 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 		else
 			NV_Ith_S(ydot,i) = 0;
 	}
+
+#if 0
+	printf("\n\nt=%g\n",t);
+	for (i=0;i<sc->num_values;i++)
+	{
+		v = sc->values[i];
+		printf("%s=%g  ",sc->values[i]->name,NV_Ith_S(ydot,i));
+		if (v->node) print(sc,v->node);
+		printf("\n");
+	}
+#endif
 	
 	return 0;
 }
@@ -538,6 +601,12 @@ char **simulation_get_value_names(struct simulation_context *sc)
 	sc->names[i] = NULL;
 	return sc->names;
 }
+
+void simulation_context_compile(struct simulation_context *sc)
+{
+	FILE *out = stdout;
+}
+
 
 /**********************************************************
  Integrates the simulation.
@@ -603,6 +672,8 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		fprintf(stderr,"CVodeMalloc failed\n");
 		exit(-1);
 	}
+
+	simulation_context_compile(sc);
 
 	/* Set the passed user data */
 	CVodeSetFdata(cvode_mem,sc);
@@ -673,6 +744,9 @@ void simulation_context_free(struct simulation_context *sc)
 	
 	if (sc->names)
 		free(sc->names);
+
+	if (sc->unfixed)
+		free(sc->unfixed);
 
 	free(sc);
 }
