@@ -1,4 +1,5 @@
-CXXFLAGS =	-O2 -g -Wall -fmessage-length=0 -fstrict-aliasing -Wstrict-aliasing
+PROFILE = # -pg
+CXXFLAGS =	-O2 $(PROFILE) -g -Wall -fmessage-length=0 -fstrict-aliasing -Wstrict-aliasing
 
 
 ODE_OBJS = ode/ODESettings.o
@@ -17,7 +18,7 @@ TARGET =	sbml2ode
 	g++ $(CXXFLAGS) $(INC) -c $< -o $@
 
 $(TARGET):	$(OBJS)
-	$(CXX) -o $(TARGET) $(OBJS) $(LIBS)
+	$(CXX) -o $(TARGET) $(PROFILE) $(OBJS) $(LIBS)
 
 all:	$(TARGET)
 
