@@ -604,9 +604,21 @@ char **simulation_get_value_names(struct simulation_context *sc)
 
 void simulation_context_compile(struct simulation_context *sc)
 {
+	unsigned int i;
 	FILE *out = stdout;
-}
 
+	fprintf(out,"#include <stdio.h>\n\n");
+
+	for (i=0;i<sc->num_values;i++)
+	{
+		fprintf(out,"static double %s = %g;\n",sc->values[i]->name,sc->values[i]->value);
+	}
+
+	fprintf(out,"int rhs(double t, double *y, double *ydot, void *f_data)\n");
+	fprintf(out,"{\n");
+	fprintf(out,"");
+	fprintf(out,"}\n");
+}
 
 /**********************************************************
  Integrates the simulation.

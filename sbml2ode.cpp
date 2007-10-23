@@ -102,10 +102,10 @@ int main(int argc, char **argv)
 	
 	integration_settings_init(&settings);
 	settings.sample_func = sample;
-	settings.absolute_error = 1e-15;
-	settings.relative_error = 1e-15;
-	settings.time = 50;
-	settings.steps = 1000;
+	settings.absolute_error = 1e-5;
+	settings.relative_error = 1e-5;
+	settings.time = 2;
+	settings.steps = 20;
 
 	simulation_integrate(sc,&settings);
 
