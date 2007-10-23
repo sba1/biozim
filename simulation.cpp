@@ -251,7 +251,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		fprintf(stderr,"Could not allocate memory\n");
 		goto bailout;
 	}
-	memset(sc,sizeof(*sc),0);
+	memset(sc,0,sizeof(*sc));
 
 	if (!(parser = new SBMLParser(filename)))
 	{
@@ -552,16 +552,16 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 	struct simulation_context *sc = (struct simulation_context*)f_data;
 
 	/* Update values */
-	for (i=0;i<sc->num_values;i++)
+	for (i=0;i<sc->num_unfixed;i++)
 	{
-		v = sc->values[i];
+		v = sc->values[sc->unfixed[i]];
 		v->value = NV_Ith_S(y,i);
 	}
 
 	/* Calculate ydot */
-	for (i=0;i<sc->num_values;i++)
+	for (i=0;i<sc->num_unfixed;i++)
 	{
-		v = sc->values[i];
+		v = sc->values[sc->unfixed[i]];
 		if (v->node && !v->fixed)
 			NV_Ith_S(ydot,i) = evaluate(sc, v->node);
 		else
@@ -620,6 +620,9 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	unsigned int num_values = sc->num_values;
 	struct value **values = sc->values;
 
+	int *unfixed = sc->unfixed;
+	unsigned int num_unfixed = sc->num_unfixed;
+
 	/* Used for the sample function */
 	double *value_space;
 
@@ -638,23 +641,11 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		exit(-1);
 	}
 
-	void *cvode_mem = NULL;
 	int flag;
-	realtype *real = NULL;
-	N_Vector vec = NULL;
-
-	if (!(real = (realtype*)malloc(sizeof(*real)*num_values)))
-	{
-		fprintf(stderr,"Not enough memory!\n");
-		exit(-1);
-	}
-
-	/* Initial values */
-	for (i=0;i<num_values;i++)
-	{
-		real[i] = values[i]->value;
-		value_space[i] = real[i];
-	}
+	void *cvode_mem = NULL;
+	N_Vector initial = NULL, yout = NULL;
+	realtype abstol = settings->absolute_error;
+	realtype tret;
 
 	if (!(cvode_mem = CVodeCreate(CV_ADAMS,CV_FUNCTIONAL)))
 	{
@@ -662,11 +653,27 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		exit(-1);
 	}
 
-	vec = N_VMake_Serial(num_values,real);
+	if (!(initial = N_VNew_Serial(num_unfixed)))
+	{
+		fprintf(stderr,"N_VNew_Serial() failed!\n");
+		goto out;
+	}
 
-	realtype abstol = settings->absolute_error;
+	if (!(yout = N_VNew_Serial(num_unfixed)))
+	{
+		fprintf(stderr,"N_VNew_Serial() failed!\n");
+		goto out;
+	}
 
-	flag = CVodeMalloc(cvode_mem, f, 0, vec, CV_SS, settings->relative_error, &abstol);
+	/* Initialize initial values in value_space (for sample function) */
+	for (i=0;i<num_values;i++)
+		value_space[i] = values[i]->value;
+
+	/* Initialize initial values for ode solver */
+	for (i=0;i<num_unfixed;i++)
+		NV_Ith_S(initial,i) = value_space[unfixed[i]];
+
+	flag = CVodeMalloc(cvode_mem, f, 0, initial, CV_SS, settings->relative_error, &abstol);
 	if (flag < 0)
 	{
 		fprintf(stderr,"CVodeMalloc failed\n");
@@ -678,15 +685,12 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	/* Set the passed user data */
 	CVodeSetFdata(cvode_mem,sc);
 
-	flag = CVDense(cvode_mem,num_values);
+	flag = CVDense(cvode_mem,num_unfixed);
 	if (flag < 0)
 	{
 		fprintf(stderr,"CVDense failed\n");
 		exit(-1);
 	}
-
-	realtype tret;
-	N_Vector yout = N_VNew_Serial(num_values);
 
 	if (settings->sample_func)
 	{
@@ -696,33 +700,31 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	
 	CVodeSetMaxNumSteps(cvode_mem,500000);
 	
-	
 	for (i=1;i<=steps;i++)
 	{
 		flag = CVode(cvode_mem,tmax*i/steps,yout,&tret,CV_NORMAL);
 		if (flag < 0)
 		{
 			fprintf(stderr,"CVode failed\n");
-			exit(-1);
+			goto out;
 		}
-
-		for (j=0;j<num_values;j++)
-			value_space[j] = NV_Ith_S(yout,j);
 
 		if (settings->sample_func)
 		{
+			/* Fill the value space */
+			for (j=0;j<num_unfixed;j++)
+				value_space[unfixed[j]] = NV_Ith_S(yout,j);
+
 			if (!settings->sample_func(tmax*i/steps,num_values,value_space))
 				goto out;
 		}
-
 	}
 	
 out:
 	/* Cleanup */
 	if (yout) N_VDestroy_Serial(yout);
-	if (vec) N_VDestroy_Serial(vec);
+	if (initial) N_VDestroy_Serial(initial);
 	if (cvode_mem) CVodeFree(&cvode_mem);
-	free(real);
 	free(value_space);
 }
 

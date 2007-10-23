@@ -104,7 +104,7 @@ int main(int argc, char **argv)
 	settings.sample_func = sample;
 	settings.absolute_error = 1e-15;
 	settings.relative_error = 1e-15;
-	settings.time = 20;
+	settings.time = 50;
 	settings.steps = 1000;
 
 	simulation_integrate(sc,&settings);
