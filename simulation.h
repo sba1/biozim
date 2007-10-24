@@ -18,6 +18,9 @@ struct integration_settings
 
 	/* The sampling function. It is called for every sampled time point */
 	int (*sample_func)(double time, int num_values, double *values);
+
+	/* If set, the interpeted evaluation of the right-hand side is performed */
+	int force_interpreted;
 };
 
 void integration_settings_init(struct integration_settings *settings);

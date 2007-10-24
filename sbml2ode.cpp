@@ -8,7 +8,9 @@
 /********************************************************/
 
 static const char *model_filename;
+static int force_interpreted;
 int verbose; /* used by other modules */
+
 
 /*************************************************
  Displays the program's usage and exits
@@ -18,7 +20,9 @@ static void usage(char *name)
 	fprintf(stderr, "usage: %s [OPTIONS] SBML-File ...\n"
 			"Loads the given SBML-File and performs a simulation run.\n"
 			"Specify '-' to read from stdin.\n"
-			"\t-h, --help      show this help and quit.\n",
+			"\t-h, --help               show this help and quit.\n"
+			"\t    --verbose            verbose output.\n"
+			"\t    --force-interpreted  forces the interpreted calculation of the rhs.\n",
 			name);
 
 	exit(1);
@@ -42,6 +46,9 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--verbose"))
 		{
 			verbose = 1;
+		} else if (!strcmp(argv[i],"--force-interpreted"))
+		{
+			force_interpreted = 1;
 		} else
 		{
 			filename_given = 1;
@@ -106,6 +113,7 @@ int main(int argc, char **argv)
 	settings.relative_error = 1e-5;
 	settings.time = 2;
 	settings.steps = 20;
+	settings.force_interpreted = force_interpreted;
 
 	simulation_integrate(sc,&settings);
 

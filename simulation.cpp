@@ -36,7 +36,6 @@ struct simulation_context
 
 extern int verbose;
 
-
 /***********************************************/
 
 /* This is our state space */
@@ -649,7 +648,7 @@ char **simulation_get_value_names(struct simulation_context *sc)
 /**********************************************************
  Compiles the rhs function.
 ***********************************************************/
-int simulation_context_compile(struct simulation_context *sc)
+static int simulation_context_prepare_jit(struct simulation_context *sc)
 {
 	unsigned int i;
 	const char *filename = "test.c";
@@ -727,6 +726,21 @@ int simulation_context_compile(struct simulation_context *sc)
 }
 
 /**********************************************************
+ 
+***********************************************************/
+static void simulation_context_finish_jit(struct simulation_context *sc)
+{
+	if (sc->dlhandle)
+	{
+		dlclose(sc->dlhandle);
+		sc->dlhandle = NULL;
+	}
+
+	sc->dlrhs = NULL;
+}
+
+
+/**********************************************************
  Integrates the simulation.
 ***********************************************************/
 void simulation_integrate(struct simulation_context *sc, struct integration_settings *settings)
@@ -792,7 +806,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	for (i=0;i<num_unfixed;i++)
 		NV_Ith_S(initial,i) = value_space[unfixed[i]];
 	
-	if (simulation_context_compile(sc))
+	if (!settings->force_interpreted && simulation_context_prepare_jit(sc))
 	{
 		if (verbose) fprintf(stderr,"Using compiled right-hand side function\n");
 		rhs = dlf;
@@ -847,6 +861,8 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	}
 	
 out:
+	simulation_context_finish_jit(sc);
+
 	/* Cleanup */
 	if (yout) N_VDestroy_Serial(yout);
 	if (initial) N_VDestroy_Serial(initial);
@@ -869,12 +885,23 @@ void simulation_context_free(struct simulation_context *sc)
 		}
 		free(sc->values);
 	}
-	
+
+	simulation_context_finish_jit(sc);
+
 	if (sc->names)
 		free(sc->names);
 
 	if (sc->unfixed)
 		free(sc->unfixed);
+
+	if (sc->dly)
+		free(sc->dly);
+
+	if (sc->dlydot)
+		free(sc->dlydot);
+
+	if (sc->dlhandle)
+		dlclose(sc->dlhandle);
 
 	free(sc);
 }
