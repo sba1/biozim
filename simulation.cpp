@@ -1,5 +1,7 @@
 /* simulation.cpp */
 
+#include <dlfcn.h>
+
 #include <sbml/SBMLTypes.h>
 
 /* Headers of sundials */
@@ -23,6 +25,13 @@ struct simulation_context
 
 	unsigned int num_unfixed;
 	int *unfixed; /* Contains indices to values */
+
+	int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
+	void *dlhandle;
+
+	/* Preallocated space for the dlrhs function */
+	double *dly;
+	double *dlydot;
 };
 
 extern int verbose;
@@ -365,6 +374,17 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		sc->unfixed[j++] = i;
 	}
 
+	if (!(sc->dly = (double*)malloc(sizeof(sc->dly[0])*sc->num_unfixed)))
+	{
+		fprintf(stderr,"Not enough memory\n");
+		exit(-1);
+	}
+	if (!(sc->dlydot = (double*)malloc(sizeof(sc->dlydot[0])*sc->num_unfixed)))
+	{
+		fprintf(stderr,"Not enough memory\n");
+		exit(-1);
+	}
+
 	delete parser;
 	return sc;
 	
@@ -543,6 +563,30 @@ static void print(struct simulation_context *sc, const ASTNode *node)
 }
 
 /*********************************************************
+ The right hand side of the ODEs (uses dynamical loaded
+ function)
+**********************************************************/
+static int dlf(realtype t, N_Vector y, N_Vector ydot, void *f_data)
+{
+	unsigned int i;
+	struct simulation_context *sc = (struct simulation_context*)f_data;
+
+	/* Update values */
+	for (i=0;i<sc->num_unfixed;i++)
+	{
+		sc->dly[i] = NV_Ith_S(y,i);
+	}
+
+	/* Calculate ydot */
+	sc->dlrhs(t,sc->dly,sc->dlydot,f_data);
+
+	for (i=0;i<sc->num_unfixed;i++)
+		NV_Ith_S(ydot,i) = sc->dlydot[i]; 
+
+	return 0;
+}
+
+/*********************************************************
  The right hand side of the ODEs
 **********************************************************/
 static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
@@ -602,22 +646,84 @@ char **simulation_get_value_names(struct simulation_context *sc)
 	return sc->names;
 }
 
-void simulation_context_compile(struct simulation_context *sc)
+/**********************************************************
+ Compiles the rhs function.
+***********************************************************/
+int simulation_context_compile(struct simulation_context *sc)
 {
 	unsigned int i;
-	FILE *out = stdout;
+	const char *filename = "test.c";
+	char *command;
+	int rc;
+	FILE *out;
 
-	fprintf(out,"#include <stdio.h>\n\n");
-
-	for (i=0;i<sc->num_values;i++)
+	if (!(out = fopen(filename,"w")))
 	{
-		fprintf(out,"static double %s = %g;\n",sc->values[i]->name,sc->values[i]->value);
+		fprintf(stderr,"Unable to open \"%s\" for output.\n",filename);
+		return 0;
 	}
+
+	/* Build the source code */
+	fprintf(out,"#include <stdio.h>\n");
+	fprintf(out,"#include <math.h>\n\n");
 
 	fprintf(out,"int rhs(double t, double *y, double *ydot, void *f_data)\n");
 	fprintf(out,"{\n");
-	fprintf(out,"");
+
+	for (i=0;i<sc->num_values;i++)
+	{
+		fprintf(out,"\tdouble %s = %g;\n",sc->values[i]->name,sc->values[i]->value);
+	}
+
+	for (i=0;i<sc->num_unfixed;i++)
+	{
+		struct value *v = sc->values[sc->unfixed[i]];
+		fprintf(out,"\t%s = y[%d];\n",v->name,i);
+	}
+	fprintf(out,"\n");
+	for (i=0;i<sc->num_unfixed;i++)
+	{
+		struct value *v = sc->values[sc->unfixed[i]];
+		char *formula = SBML_formulaToString(v->node);
+		fprintf(out,"\tydot[%d]=%s;\n",i,formula);
+	}
 	fprintf(out,"}\n");
+	
+	/* Build the program */
+	fclose(out);
+	if (!(command = (char*)malloc(500)))
+		return 0;
+
+	snprintf(command,500,"gcc -O3 -fPIC -shared test.c -o test.so");
+	fprintf(stderr,"%s\n",command);
+
+	if (!(rc = system(command)))
+	{
+		void *handle = dlopen("./test.so",RTLD_NOW);
+		if (handle)
+		{
+			int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
+			char *error;
+
+			dlrhs = (int (*)(double t, double *y, double *ydot, void *f_data))dlsym(handle,"rhs");
+			
+			if (!(error = dlerror()))
+			{
+				sc->dlrhs = dlrhs;
+				sc->dlhandle = handle;
+				return 1;
+			} else
+			{
+				fprintf(stderr,"%s\n",error);
+			}
+			dlclose(handle);
+		} else
+		{
+			fprintf(stderr,"dlopen() failed\n%s\n",dlerror());
+		}
+	}
+	free(command);
+	return 0;
 }
 
 /**********************************************************
@@ -658,6 +764,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	N_Vector initial = NULL, yout = NULL;
 	realtype abstol = settings->absolute_error;
 	realtype tret;
+	int (*rhs)(realtype, _generic_N_Vector*, _generic_N_Vector*, void*);
 
 	if (!(cvode_mem = CVodeCreate(CV_ADAMS,CV_FUNCTIONAL)))
 	{
@@ -684,17 +791,24 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	/* Initialize initial values for ode solver */
 	for (i=0;i<num_unfixed;i++)
 		NV_Ith_S(initial,i) = value_space[unfixed[i]];
+	
+	if (simulation_context_compile(sc))
+	{
+		if (verbose) fprintf(stderr,"Using compiled right-hand side function\n");
+		rhs = dlf;
+	} else
+	{
+		if (verbose) fprintf(stderr,"Using interpreted right-hand side function\n");
+		rhs = f;
+	}
 
-	flag = CVodeMalloc(cvode_mem, f, 0, initial, CV_SS, settings->relative_error, &abstol);
+	flag = CVodeMalloc(cvode_mem, rhs, 0, initial, CV_SS, settings->relative_error, &abstol);
 	if (flag < 0)
 	{
 		fprintf(stderr,"CVodeMalloc failed\n");
 		exit(-1);
 	}
 
-	simulation_context_compile(sc);
-
-	/* Set the passed user data */
 	CVodeSetFdata(cvode_mem,sc);
 
 	flag = CVDense(cvode_mem,num_unfixed);
