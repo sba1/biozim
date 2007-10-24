@@ -710,6 +710,7 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 			{
 				sc->dlrhs = dlrhs;
 				sc->dlhandle = handle;
+				free(command);
 				return 1;
 			} else
 			{
