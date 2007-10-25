@@ -197,6 +197,23 @@ static void value_add_reference(SpeciesReference *ref, const ASTNode *formula, A
 
 /***********************************************/
 
+struct assignment
+{
+	const char *value;
+	int idx;
+
+	ASTNode *math;
+};
+
+struct event
+{
+	ASTNode *trigger;
+
+	int numAssignments;
+	struct assignment *assignments;
+};
+
+/***********************************************/
 
 /*************************************************
  Builds the value map.
@@ -317,6 +334,8 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	for (i=0;i<numEvents;i++)
 	{
 		Event *e = model->getEvent(i);
+		const Trigger *t = e->getTrigger();
+	 	unsigned int numEventAssignments = e->getNumEventAssignments();
 	}
 
 	simulation_context_build_value_map(sc);
