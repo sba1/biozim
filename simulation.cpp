@@ -250,6 +250,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	unsigned int numSpecies;
 	unsigned int numReactions;
 	unsigned int numParameters;
+	unsigned int numEvents;
 	unsigned int i,j;
 	
 	struct simulation_context *sc;
@@ -279,6 +280,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	numSpecies = model->getNumSpecies();
 	numReactions = model->getNumReactions();
 	numParameters = model->getNumParameters();
+	numEvents = model->getNumEvents();
 
 	/* Gather global parameters */
 	for (i=0;i<numParameters;i++)
@@ -309,6 +311,12 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	{
 		Species *sp = model->getSpecies(i);
 		value_add_species(sp);
+	}
+
+	/* Gather events */
+	for (i=0;i<numEvents;i++)
+	{
+		Event *e = model->getEvent(i);
 	}
 
 	simulation_context_build_value_map(sc);
