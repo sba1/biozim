@@ -1,0 +1,925 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level1" level="1" version="2">
+ <model name="zak">
+  <listOfCompartments>
+   <compartment name="Cell" volume="1" />
+  </listOfCompartments>
+  <listOfSpecies>
+   <species compartment="Cell" name="A" initialAmount="904.8395"/>
+   <species compartment="Cell" name="B" initialAmount="0.5641"/>
+   <species compartment="Cell" name="C" initialAmount="166.9104"/>
+   <species compartment="Cell" name="D" initialAmount="0.1756"/>
+   <species compartment="Cell" name="E" initialAmount="199.8356"/>
+   <species compartment="Cell" name="F" initialAmount="0.02"/>
+   <species compartment="Cell" name="G" initialAmount="0.1545"/>
+   <species compartment="Cell" name="H" initialAmount="99.9363"/>
+   <species compartment="Cell" name="J" initialAmount="0.0837"/>
+   <species compartment="Cell" name="K" initialAmount="0.1545"/>
+   <species compartment="Cell" name="MA" initialAmount="95.2973"/>
+   <species compartment="Cell" name="MB" initialAmount="9.0081"/>
+   <species compartment="Cell" name="MC" initialAmount="38.4593"/>
+   <species compartment="Cell" name="MD" initialAmount="0.0351"/>
+   <species compartment="Cell" name="ME" initialAmount="39.9671"/>
+   <species compartment="Cell" name="MF" initialAmount="0.0040"/>
+   <species compartment="Cell" name="MG" initialAmount="0.0309"/>
+   <species compartment="Cell" name="MH" initialAmount="19.9873"/>
+   <species compartment="Cell" name="MJ" initialAmount="0.0167"/>
+   <species compartment="Cell" name="MK" initialAmount="0.0309"/>
+   <species compartment="Cell" name="PAA" initialAmount="0.1047"/>
+   <species compartment="Cell" name="PBA" initialAmount="0.199"/>
+   <species compartment="Cell" name="PBF" initialAmount="2.0"/>
+   <species compartment="Cell" name="PCA" initialAmount="0.1531"/>
+   <species compartment="Cell" name="PCD" initialAmount="1.9984"/>
+   <species compartment="Cell" name="PDC" initialAmount="0.0027"/>
+   <species compartment="Cell" name="PDF" initialAmount="2.0"/>
+   <species compartment="Cell" name="PED" initialAmount="1.9984"/>
+   <species compartment="Cell" name="PFEQ" initialAmount="2.0"/>
+   <species compartment="Cell" name="PGC" initialAmount="0.0027"/>
+   <species compartment="Cell" name="PHG" initialAmount="1.9987"/>
+   <species compartment="Cell" name="PJK" initialAmount="1.9987"/>
+   <species compartment="Cell" name="PKC" initialAmount="0.0027"/>
+   <species compartment="Cell" name="CC" initialAmount="55705.0"/>
+   <species compartment="Cell" name="DD" initialAmount="0.0617"/>
+   <species compartment="Cell" name="FF" initialAmount="8.0E-4"/>
+   <species compartment="Cell" name="GG" initialAmount="0.0478"/>
+   <species compartment="Cell" name="KK" initialAmount="0.0478"/>
+   <species compartment="Cell" name="EQ" initialAmount="0.0"/>
+   <species compartment="Cell" name="AB" initialAmount="1003.0"/>
+   <species compartment="Cell" name="Q" initialAmount="0.0"/>
+   <species compartment="Cell" name="A_PAA" initialAmount="1.8953"/>
+   <species compartment="Cell" name="A_PBA" initialAmount="1.801"/>
+   <species compartment="Cell" name="A_PCA" initialAmount="1.8469"/>
+   <species compartment="Cell" name="CC_PDC" initialAmount="1.9973"/>
+   <species compartment="Cell" name="CC_PGC" initialAmount="1.9973"/>
+   <species compartment="Cell" name="CC_PKC" initialAmount="1.9973"/>
+   <species compartment="Cell" name="DD_PCD" initialAmount="0.0016"/>
+   <species compartment="Cell" name="DD_PED" initialAmount="0.0016"/>
+   <species compartment="Cell" name="FF_PBF" initialAmount="0.0"/>
+   <species compartment="Cell" name="FF_PDF" initialAmount="0.0"/>
+   <species compartment="Cell" name="GG_PHG" initialAmount="0.0013"/>
+   <species compartment="Cell" name="KK_PJK" initialAmount="0.0013"/>
+   <species compartment="Cell" name="EQ_PFEQ" initialAmount="0.0"/>
+   <species compartment="Cell" name="time" initialAmount="0.0"/>
+  </listOfSpecies>
+  <listOfParameters>
+   <parameter name="slope" value="100000"/>
+   <parameter name="kPGCC" value="1.0"/>
+   <parameter name="kPHGG" value="1.0"/>
+   <parameter name="kUPAA" value="50.0"/>
+   <parameter name="kGG" value="2.0"/>
+   <parameter name="kRAPAA" value="500.0"/>
+   <parameter name="kRDDPED" value="0.01"/>
+   <parameter name="kDegD" value="1.0"/>
+   <parameter name="kDMJ" value="5.0"/>
+   <parameter name="kDMK" value="5.0"/>
+   <parameter name="kDMH" value="5.0"/>
+   <parameter name="kDMF" value="5.0"/>
+   <parameter name="kDMG" value="5.0"/>
+   <parameter name="kDMD" value="5.0"/>
+   <parameter name="kDME" value="5.0"/>
+   <parameter name="kDMC" value="5.0"/>
+   <parameter name="kPKCC" value="1.0"/>
+   <parameter name="kDMB" value="10.0"/>
+   <parameter name="kDMA" value="10.0"/>
+   <parameter name="kUPFEQ" value="75.0"/>
+   <parameter name="kRPED" value="100.0"/>
+   <parameter name="kRAPBA" value="50.0"/>
+   <parameter name="kUEQ" value="1.0"/>
+   <parameter name="kPAA" value="1.0"/>
+   <parameter name="kRFFPDF" value="50.0"/>
+   <parameter name="kRPFEQ" value="0.01"/>
+   <parameter name="kPBFF" value="1.0"/>
+   <parameter name="kRGGPHG" value="0.01"/>
+   <parameter name="kPBA" value="1.0"/>
+   <parameter name="kPDFF" value="1.0"/>
+   <parameter name="kRPDF" value="0.01"/>
+   <parameter name="kUPJKK" value="75.0"/>
+   <parameter name="kRPDC" value="50.0"/>
+   <parameter name="kRPKC" value="50.0"/>
+   <parameter name="kUPEDD" value="75.0"/>
+   <parameter name="kRPCA" value="0.01"/>
+   <parameter name="kAB" value="2.0"/>
+   <parameter name="kPCA" value="1.0"/>
+   <parameter name="kUPGCC" value="75.0"/>
+   <parameter name="kRPCD" value="50.0"/>
+   <parameter name="kPCDD" value="1.0"/>
+   <parameter name="kRCCPGC" value="0.01"/>
+   <parameter name="kCC" value="2.0"/>
+   <parameter name="kRPAA" value="50.0"/>
+   <parameter name="kRPJK" value="0.01"/>
+   <parameter name="kRFFPBF" value="50.0"/>
+   <parameter name="kUPCDD" value="75.0"/>
+   <parameter name="kKK" value="2.0"/>
+   <parameter name="kPJKK" value="1.0"/>
+   <parameter name="kDG" value="1.0"/>
+   <parameter name="kDH" value="1.0"/>
+   <parameter name="kRPBF" value="0.0050"/>
+   <parameter name="kDE" value="1.0"/>
+   <parameter name="kDF" value="1.0"/>
+   <parameter name="kDC" value="1.0"/>
+   <parameter name="kRPBA" value="0.01"/>
+   <parameter name="kUK" value="1.0"/>
+   <parameter name="kDD" value="2.0"/>
+   <parameter name="kDA" value="1.0"/>
+   <parameter name="kDB" value="0.12"/>
+   <parameter name="kPEDD" value="1.0"/>
+   <parameter name="kREQPFEQ" value="100.0"/>
+   <parameter name="kPFEQ" value="1.0"/>
+   <parameter name="kUPKCC" value="75.0"/>
+   <parameter name="kDQ" value="0.1"/>
+   <parameter name="kUPDCC" value="75.0"/>
+   <parameter name="kUAB" value="1.0"/>
+   <parameter name="kDK" value="1.0"/>
+   <parameter name="kDJ" value="1.0"/>
+   <parameter name="kTK" value="5.0"/>
+   <parameter name="kTJ" value="5.0"/>
+   <parameter name="kRKKPJK" value="50.0"/>
+   <parameter name="kRAPCA" value="50.0"/>
+   <parameter name="kUPCA" value="75.0"/>
+   <parameter name="kRPHG" value="50.0"/>
+   <parameter name="kUD" value="1.0"/>
+   <parameter name="kUC" value="1.0"/>
+   <parameter name="kUG" value="1.0"/>
+   <parameter name="kEQ" value="2.0"/>
+   <parameter name="kUF" value="1.0"/>
+   <parameter name="kUPDFF" value="75.0"/>
+   <parameter name="kRCCPKC" value="0.01"/>
+   <parameter name="kFF" value="2.0"/>
+   <parameter name="kUPHGG" value="75.0"/>
+   <parameter name="kRCCPDC" value="0.01"/>
+   <parameter name="kRDDPCD" value="0.01"/>
+   <parameter name="kPDCC" value="1.0"/>
+   <parameter name="kUPBFF" value="75.0"/>
+   <parameter name="kUPBA" value="100.0"/>
+   <parameter name="kTB" value="2.0"/>
+   <parameter name="kTA" value="20.0"/>
+   <parameter name="kRPGC" value="50.0"/>
+   <parameter name="kTD" value="5.0"/>
+   <parameter name="kTC" value="5.0"/>
+   <parameter name="kTF" value="5.0"/>
+   <parameter name="kTE" value="5.0"/>
+   <parameter name="kTH" value="5.0"/>
+   <parameter name="kTG" value="5.0"/>
+  </listOfParameters>
+  <listOfReactions>
+   <reaction name="r1">
+    <listOfReactants>
+     <speciesReference species="A" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDA*A" />
+   </reaction>
+   <reaction name="r2">
+    <listOfReactants>
+     <speciesReference species="B" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDB*B" />
+   </reaction>
+   <reaction name="r3">
+    <listOfReactants>
+     <speciesReference species="C" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDC*C" />
+   </reaction>
+   <reaction name="r4">
+    <listOfReactants>
+     <speciesReference species="D" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDegD*D" />
+   </reaction>
+   <reaction name="r5">
+    <listOfReactants>
+     <speciesReference species="E" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDE*E" />
+   </reaction>
+   <reaction name="r6">
+    <listOfReactants>
+     <speciesReference species="F" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDF*F" />
+   </reaction>
+   <reaction name="r7">
+    <listOfReactants>
+     <speciesReference species="G" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDG*G" />
+   </reaction>
+   <reaction name="r8">
+    <listOfReactants>
+     <speciesReference species="H" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDH*H" />
+   </reaction>
+   <reaction name="r9">
+    <listOfReactants>
+     <speciesReference species="J" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDJ*J" />
+   </reaction>
+   <reaction name="r10">
+    <listOfReactants>
+     <speciesReference species="K" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDK*K" />
+   </reaction>
+   <reaction name="r11">
+    <listOfReactants>
+     <speciesReference species="MA" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDMA*MA" />
+   </reaction>
+   <reaction name="r12">
+    <listOfReactants>
+     <speciesReference species="MB" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDMB*MB" />
+   </reaction>
+   <reaction name="r13">
+    <listOfReactants>
+     <speciesReference species="MC" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDMC*MC" />
+   </reaction>
+   <reaction name="r14">
+    <listOfReactants>
+     <speciesReference species="MD" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDMD*MD" />
+   </reaction>
+   <reaction name="r15">
+    <listOfReactants>
+     <speciesReference species="ME" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDME*ME" />
+   </reaction>
+   <reaction name="r16">
+    <listOfReactants>
+     <speciesReference species="MF" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDMF*MF" />
+   </reaction>
+   <reaction name="r17">
+    <listOfReactants>
+     <speciesReference species="MG" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDMG*MG" />
+   </reaction>
+   <reaction name="r18">
+    <listOfReactants>
+     <speciesReference species="MH" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDMH*MH" />
+   </reaction>
+   <reaction name="r19">
+    <listOfReactants>
+     <speciesReference species="MJ" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDMJ*MJ" />
+   </reaction>
+   <reaction name="r20">
+    <listOfReactants>
+     <speciesReference species="MK" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDMK*MK" />
+   </reaction>
+   <reaction name="r21">
+    <listOfProducts>
+     <speciesReference species="A" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kTA*MA" />
+   </reaction>
+   <reaction name="r22">
+    <listOfProducts>
+     <speciesReference species="B" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kTB*MB" />
+   </reaction>
+   <reaction name="r23">
+    <listOfProducts>
+     <speciesReference species="C" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kTC*MC" />
+   </reaction>
+   <reaction name="r24">
+    <listOfProducts>
+     <speciesReference species="D" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kTD*MD" />
+   </reaction>
+   <reaction name="r25">
+    <listOfProducts>
+     <speciesReference species="E" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kTE*ME" />
+   </reaction>
+   <reaction name="r26">
+    <listOfProducts>
+     <speciesReference species="F" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kTF*MF" />
+   </reaction>
+   <reaction name="r27">
+    <listOfProducts>
+     <speciesReference species="G" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kTG*MG" />
+   </reaction>
+   <reaction name="r28">
+    <listOfProducts>
+     <speciesReference species="H" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kTH*MH" />
+   </reaction>
+   <reaction name="r29">
+    <listOfProducts>
+     <speciesReference species="J" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kTJ*MJ" />
+   </reaction>
+   <reaction name="r30">
+    <listOfProducts>
+     <speciesReference species="K" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kTK*MK" />
+   </reaction>
+   <reaction name="r31">
+    <listOfReactants>
+     <speciesReference species="C" stoichiometry="2.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="CC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kCC*C*C" />
+   </reaction>
+   <reaction name="r32">
+    <listOfReactants>
+     <speciesReference species="D" stoichiometry="2.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="DD" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kDD*D*D" />
+   </reaction>
+   <reaction name="r33">
+    <listOfReactants>
+     <speciesReference species="F" stoichiometry="2.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="FF" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kFF*F*F" />
+   </reaction>
+   <reaction name="r34">
+    <listOfReactants>
+     <speciesReference species="G" stoichiometry="2.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="GG" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kGG*G*G" />
+   </reaction>
+   <reaction name="r35">
+    <listOfReactants>
+     <speciesReference species="K" stoichiometry="2.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="KK" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kKK*K*K" />
+   </reaction>
+   <reaction name="r36">
+    <listOfReactants>
+     <speciesReference species="E" stoichiometry="1.0" />
+     <speciesReference species="Q" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="EQ" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kEQ*E*Q" />
+   </reaction>
+   <reaction name="r37">
+    <listOfReactants>
+     <speciesReference species="A" stoichiometry="1.0" />
+     <speciesReference species="B" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="AB" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kAB*A*B" />
+   </reaction>
+   <reaction name="r38">
+    <listOfReactants>
+     <speciesReference species="CC" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="C" stoichiometry="2.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUC*CC" />
+   </reaction>
+   <reaction name="r39">
+    <listOfReactants>
+     <speciesReference species="DD" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="D" stoichiometry="2.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUD*DD" />
+   </reaction>
+   <reaction name="r40">
+    <listOfReactants>
+     <speciesReference species="FF" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="F" stoichiometry="2.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUF*FF" />
+   </reaction>
+   <reaction name="r41">
+    <listOfReactants>
+     <speciesReference species="GG" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="G" stoichiometry="2.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUG*GG" />
+   </reaction>
+   <reaction name="r42">
+    <listOfReactants>
+     <speciesReference species="KK" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="K" stoichiometry="2.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUK*KK" />
+   </reaction>
+   <reaction name="r43">
+    <listOfReactants>
+     <speciesReference species="EQ" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="E" stoichiometry="1.0" />
+     <speciesReference species="Q" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUEQ*EQ" />
+   </reaction>
+   <reaction name="r44">
+    <listOfReactants>
+     <speciesReference species="AB" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="B" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUAB*AB" />
+   </reaction>
+   <reaction name="r45">
+    <listOfReactants>
+     <speciesReference species="A" stoichiometry="1.0" />
+     <speciesReference species="PAA" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="A_PAA" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPAA*A*PAA" />
+   </reaction>
+   <reaction name="r46">
+    <listOfReactants>
+     <speciesReference species="A" stoichiometry="1.0" />
+     <speciesReference species="PBA" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="A_PBA" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPBA*A*PBA" />
+   </reaction>
+   <reaction name="r47">
+    <listOfReactants>
+     <speciesReference species="A" stoichiometry="1.0" />
+     <speciesReference species="PCA" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="A_PCA" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPCA*A*PCA" />
+   </reaction>
+   <reaction name="r48">
+    <listOfReactants>
+     <speciesReference species="PDC" stoichiometry="1.0" />
+     <speciesReference species="CC" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="CC_PDC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPDCC*CC*PDC" />
+   </reaction>
+   <reaction name="r49">
+    <listOfReactants>
+     <speciesReference species="PGC" stoichiometry="1.0" />
+     <speciesReference species="CC" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="CC_PGC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPGCC*CC*PGC" />
+   </reaction>
+   <reaction name="r50">
+    <listOfReactants>
+     <speciesReference species="PKC" stoichiometry="1.0" />
+     <speciesReference species="CC" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="CC_PKC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPKCC*CC*PKC" />
+   </reaction>
+   <reaction name="r51">
+    <listOfReactants>
+     <speciesReference species="PCD" stoichiometry="1.0" />
+     <speciesReference species="DD" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="DD_PCD" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPCDD*DD*PCD" />
+   </reaction>
+   <reaction name="r52">
+    <listOfReactants>
+     <speciesReference species="PED" stoichiometry="1.0" />
+     <speciesReference species="DD" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="DD_PED" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPEDD*DD*PED" />
+   </reaction>
+   <reaction name="r53">
+    <listOfReactants>
+     <speciesReference species="PBF" stoichiometry="1.0" />
+     <speciesReference species="FF" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="FF_PBF" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPBFF*FF*PBF" />
+   </reaction>
+   <reaction name="r54">
+    <listOfReactants>
+     <speciesReference species="PDF" stoichiometry="1.0" />
+     <speciesReference species="FF" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="FF_PDF" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPDFF*FF*PDF" />
+   </reaction>
+   <reaction name="r55">
+    <listOfReactants>
+     <speciesReference species="PHG" stoichiometry="1.0" />
+     <speciesReference species="GG" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="GG_PHG" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPHGG*GG*PHG" />
+   </reaction>
+   <reaction name="r56">
+    <listOfReactants>
+     <speciesReference species="PJK" stoichiometry="1.0" />
+     <speciesReference species="KK" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="KK_PJK" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPJKK*KK*PJK" />
+   </reaction>
+   <reaction name="r57">
+    <listOfReactants>
+     <speciesReference species="PFEQ" stoichiometry="1.0" />
+     <speciesReference species="EQ" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="EQ_PFEQ" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kPFEQ*EQ*PFEQ" />
+   </reaction>
+   <reaction name="r58">
+    <listOfReactants>
+     <speciesReference species="A_PAA" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="A" stoichiometry="1.0" />
+     <speciesReference species="PAA" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPAA*A_PAA" />
+   </reaction>
+   <reaction name="r59">
+    <listOfReactants>
+     <speciesReference species="A_PBA" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="A" stoichiometry="1.0" />
+     <speciesReference species="PBA" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPBA*A_PBA" />
+   </reaction>
+   <reaction name="r60">
+    <listOfReactants>
+     <speciesReference species="A_PCA" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="A" stoichiometry="1.0" />
+     <speciesReference species="PCA" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPCA*A_PCA" />
+   </reaction>
+   <reaction name="r61">
+    <listOfReactants>
+     <speciesReference species="CC_PDC" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="PDC" stoichiometry="1.0" />
+     <speciesReference species="CC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPDCC*CC_PDC" />
+   </reaction>
+   <reaction name="r62">
+    <listOfReactants>
+     <speciesReference species="CC_PGC" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="PGC" stoichiometry="1.0" />
+     <speciesReference species="CC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPGCC*CC_PGC" />
+   </reaction>
+   <reaction name="r63">
+    <listOfReactants>
+     <speciesReference species="CC_PKC" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="PKC" stoichiometry="1.0" />
+     <speciesReference species="CC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPKCC*CC_PKC" />
+   </reaction>
+   <reaction name="r64">
+    <listOfReactants>
+     <speciesReference species="DD_PCD" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="PCD" stoichiometry="1.0" />
+     <speciesReference species="DD" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPCDD*DD_PCD" />
+   </reaction>
+   <reaction name="r65">
+    <listOfReactants>
+     <speciesReference species="DD_PED" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="PED" stoichiometry="1.0" />
+     <speciesReference species="DD" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPEDD*DD_PED" />
+   </reaction>
+   <reaction name="r66">
+    <listOfReactants>
+     <speciesReference species="FF_PBF" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="PBF" stoichiometry="1.0" />
+     <speciesReference species="FF" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPBFF*FF_PBF" />
+   </reaction>
+   <reaction name="r67">
+    <listOfReactants>
+     <speciesReference species="FF_PDF" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="PDF" stoichiometry="1.0" />
+     <speciesReference species="FF" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPDFF*FF_PDF" />
+   </reaction>
+   <reaction name="r68">
+    <listOfReactants>
+     <speciesReference species="GG_PHG" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="PHG" stoichiometry="1.0" />
+     <speciesReference species="GG" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPHGG*GG_PHG" />
+   </reaction>
+   <reaction name="r69">
+    <listOfReactants>
+     <speciesReference species="KK_PJK" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="PJK" stoichiometry="1.0" />
+     <speciesReference species="KK" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPJKK*KK_PJK" />
+   </reaction>
+   <reaction name="r70">
+    <listOfReactants>
+     <speciesReference species="EQ_PFEQ" stoichiometry="1.0" />
+    </listOfReactants>
+    <listOfProducts>
+     <speciesReference species="PFEQ" stoichiometry="1.0" />
+     <speciesReference species="EQ" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kUPFEQ*EQ_PFEQ" />
+   </reaction>
+   <reaction name="r71">
+    <listOfProducts>
+     <speciesReference species="MA" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPAA*PAA" />
+   </reaction>
+   <reaction name="r72">
+    <listOfProducts>
+     <speciesReference species="MA" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRAPAA*A_PAA" />
+   </reaction>
+   <reaction name="r73">
+    <listOfProducts>
+     <speciesReference species="MB" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPBA*PBA" />
+   </reaction>
+   <reaction name="r74">
+    <listOfProducts>
+     <speciesReference species="MB" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRAPBA*A_PBA" />
+   </reaction>
+   <reaction name="r75">
+    <listOfProducts>
+     <speciesReference species="MB" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPBF*PBF" />
+   </reaction>
+   <reaction name="r76">
+    <listOfProducts>
+     <speciesReference species="MB" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRFFPBF*FF_PBF" />
+   </reaction>
+   <reaction name="r77">
+    <listOfProducts>
+     <speciesReference species="MC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPCA*PCA" />
+   </reaction>
+   <reaction name="r78">
+    <listOfProducts>
+     <speciesReference species="MC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRAPCA*A_PCA" />
+   </reaction>
+   <reaction name="r79">
+    <listOfProducts>
+     <speciesReference species="MC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPCD*PCD" />
+   </reaction>
+   <reaction name="r80">
+    <listOfProducts>
+     <speciesReference species="MC" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRDDPCD*DD_PCD" />
+   </reaction>
+   <reaction name="r81">
+    <listOfProducts>
+     <speciesReference species="MD" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPDC*PDC" />
+   </reaction>
+   <reaction name="r82">
+    <listOfProducts>
+     <speciesReference species="MD" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRCCPDC*CC_PDC" />
+   </reaction>
+   <reaction name="r83">
+    <listOfProducts>
+     <speciesReference species="MD" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPDF*PDF" />
+   </reaction>
+   <reaction name="r84">
+    <listOfProducts>
+     <speciesReference species="MD" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRFFPDF*FF_PDF" />
+   </reaction>
+   <reaction name="r85">
+    <listOfProducts>
+     <speciesReference species="ME" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPED*PED" />
+   </reaction>
+   <reaction name="r86">
+    <listOfProducts>
+     <speciesReference species="ME" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRDDPED*DD_PED" />
+   </reaction>
+   <reaction name="r87">
+    <listOfProducts>
+     <speciesReference species="MF" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPFEQ*PFEQ" />
+   </reaction>
+   <reaction name="r88">
+    <listOfProducts>
+     <speciesReference species="MF" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kREQPFEQ*EQ_PFEQ" />
+   </reaction>
+   <reaction name="r89">
+    <listOfProducts>
+     <speciesReference species="MG" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPGC*PGC" />
+   </reaction>
+   <reaction name="r90">
+    <listOfProducts>
+     <speciesReference species="MG" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRCCPGC*CC_PGC" />
+   </reaction>
+   <reaction name="r91">
+    <listOfProducts>
+     <speciesReference species="MH" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPHG*PHG" />
+   </reaction>
+   <reaction name="r92">
+    <listOfProducts>
+     <speciesReference species="MH" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRGGPHG*GG_PHG" />
+   </reaction>
+   <reaction name="r93">
+    <listOfProducts>
+     <speciesReference species="MJ" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPJK*PJK" />
+   </reaction>
+   <reaction name="r94">
+    <listOfProducts>
+     <speciesReference species="MJ" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRKKPJK*KK_PJK" />
+   </reaction>
+   <reaction name="r95">
+    <listOfProducts>
+     <speciesReference species="MK" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRPKC*PKC" />
+   </reaction>
+   <reaction name="r96">
+    <listOfProducts>
+     <speciesReference species="MK" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="kRCCPKC*CC_PKC" />
+   </reaction>
+   <reaction name="r97">
+    <listOfProducts>
+     <speciesReference species="time" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="1" />
+   </reaction>
+   <reaction name="r98">
+    <listOfProducts>
+     <speciesReference species="Q" stoichiometry="1.0" />
+    </listOfProducts>
+    <kineticLaw formula="slope" />
+   </reaction>
+   <reaction name="r99">
+    <listOfReactants>
+     <speciesReference species="Q" stoichiometry="1.0" />
+    </listOfReactants>
+    <kineticLaw formula="kDQ*Q" />
+   </reaction>
+  </listOfReactions>
+<!--  <listOfEvents>
+   <event id="pertubation">
+     <trigger>
+      <math xmlns="http://www.w3.org/1998/Math/MathML">
+       <apply>
+        <leq/>
+        <ci>time</ci>
+        <cn>1000</cn>
+       </apply>
+      </math>
+     </trigger>
+   </event>
+  </listOfEvents>
+-->
+
+ </model>
+</sbml>
