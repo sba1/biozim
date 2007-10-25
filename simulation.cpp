@@ -780,8 +780,13 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	realtype abstol = settings->absolute_error;
 	realtype tret;
 	int (*rhs)(realtype, _generic_N_Vector*, _generic_N_Vector*, void*);
-
-	if (!(cvode_mem = CVodeCreate(CV_ADAMS,CV_FUNCTIONAL)))
+	
+	if (settings->stiff)
+		cvode_mem = CVodeCreate(CV_BDF, CV_NEWTON);
+	else
+		cvode_mem = CVodeCreate(CV_ADAMS,CV_FUNCTIONAL);
+	
+	if (!cvode_mem)
 	{
 		fprintf(stderr,"CVodeCreate failed!\n");
 		exit(-1);
@@ -839,14 +844,15 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 			goto out;
 	}
 	
-	CVodeSetMaxNumSteps(cvode_mem,500000);
+	CVodeSetMaxNumSteps(cvode_mem,1000000);
 	
 	for (i=1;i<=steps;i++)
 	{
-		flag = CVode(cvode_mem,tmax*i/steps,yout,&tret,CV_NORMAL);
+		while ((flag = CVode(cvode_mem,tmax*i/steps,yout,&tret,CV_NORMAL))==CV_TOO_MUCH_WORK);
+
 		if (flag < 0)
 		{
-			fprintf(stderr,"CVode failed\n");
+			fprintf(stderr,"CVode failed (%d)\n",flag);
 			goto out;
 		}
 

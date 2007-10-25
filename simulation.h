@@ -21,6 +21,9 @@ struct integration_settings
 
 	/* If set, the interpeted evaluation of the right-hand side is performed */
 	int force_interpreted;
+	
+	/* Use integerator for stiff systems */
+	int stiff;
 };
 
 void integration_settings_init(struct integration_settings *settings);

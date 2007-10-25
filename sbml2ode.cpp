@@ -9,6 +9,7 @@
 
 static const char *model_filename;
 static int force_interpreted;
+static int stiff;
 int verbose; /* used by other modules */
 
 
@@ -22,7 +23,8 @@ static void usage(char *name)
 			"Specify '-' to read from stdin.\n"
 			"\t-h, --help               show this help and quit.\n"
 			"\t    --verbose            verbose output.\n"
-			"\t    --force-interpreted  forces the interpreted calculation of the rhs.\n",
+			"\t    --force-interpreted  forces the interpreted calculation of the rhs.\n"
+			"\t    --stiff              use solver for stiff ODEs.\n",
 			name);
 
 	exit(1);
@@ -49,6 +51,9 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--force-interpreted"))
 		{
 			force_interpreted = 1;
+		} else if (!strcmp(argv[i],"--stiff"))
+		{
+			stiff = 1;
 		} else
 		{
 			filename_given = 1;
@@ -111,9 +116,10 @@ int main(int argc, char **argv)
 	settings.sample_func = sample;
 	settings.absolute_error = 1e-5;
 	settings.relative_error = 1e-5;
-	settings.time = 2;
-	settings.steps = 20;
+	settings.time = 1000;
+	settings.steps = 2000;
 	settings.force_interpreted = force_interpreted;
+	settings.stiff = stiff;
 
 	simulation_integrate(sc,&settings);
 
