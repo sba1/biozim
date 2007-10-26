@@ -210,7 +210,7 @@ struct event
 	ASTNode *trigger;
 
 	int numAssignments;
-	struct assignment *assignments;
+	struct assignment assignments[0];
 };
 
 /***********************************************/
@@ -336,6 +336,24 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		Event *e = model->getEvent(i);
 		const Trigger *t = e->getTrigger();
 	 	unsigned int numEventAssignments = e->getNumEventAssignments();
+	 	struct event *ev;
+	 	
+	 	if (!(ev = (struct event*)malloc(sizeof(*ev)+sizeof(struct assignment)*numEventAssignments)))
+	 	{
+			fprintf(stderr,"Could not allocate memory\n");
+			goto bailout;
+	 	}
+
+	 	ev->numAssignments = numEventAssignments;
+	 	ev->trigger = e->getTrigger()->getMath()->deepCopy();
+
+	 	for (j=0;j<numEventAssignments;j++)
+	 	{
+	 		ev->assignments[j].value = strdup(e->getEventAssignment(j)->getName().c_str());
+	 		ev->assignments[j].math = e->getEventAssignment(j)->getMath()->deepCopy(); 
+	 	}
+	 	
+	 	/* TODO: Add Event */
 	}
 
 	simulation_context_build_value_map(sc);
