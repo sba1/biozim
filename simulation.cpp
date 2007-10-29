@@ -26,6 +26,9 @@ struct simulation_context
 	unsigned int num_unfixed;
 	int *unfixed; /* Contains indices to values */
 
+	unsigned int num_events;
+	struct event **events;
+
 	int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
 	void *dlhandle;
 
@@ -330,11 +333,17 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		value_add_species(sp);
 	}
 
+	if (!(sc->events = (struct event**)malloc(sizeof(sc->events[0])*numEvents)))
+	{
+		fprintf(stderr,"Could not allocate memory\n");
+		goto bailout;
+	}
+	sc->num_events = numEvents;
+			
 	/* Gather events */
 	for (i=0;i<numEvents;i++)
 	{
 		Event *e = model->getEvent(i);
-		const Trigger *t = e->getTrigger();
 	 	unsigned int numEventAssignments = e->getNumEventAssignments();
 	 	struct event *ev;
 	 	
@@ -352,8 +361,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 		ev->assignments[j].value = strdup(e->getEventAssignment(j)->getName().c_str());
 	 		ev->assignments[j].math = e->getEventAssignment(j)->getMath()->deepCopy(); 
 	 	}
-	 	
-	 	/* TODO: Add Event */
+	 	sc->events[i] = ev;
 	}
 
 	simulation_context_build_value_map(sc);
@@ -936,6 +944,13 @@ void simulation_context_free(struct simulation_context *sc)
 			free(sc->values[i]);
 		}
 		free(sc->values);
+	}
+	
+	if (sc->events)
+	{
+		for (unsigned int i=0;i<sc->num_events;i++)
+			free(sc->events[i]);
+		free(sc->events);
 	}
 
 	simulation_context_finish_jit(sc);
