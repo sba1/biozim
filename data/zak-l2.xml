@@ -1830,9 +1830,11 @@
        </apply>
       </math>
      </trigger>
-      <listOfEventAssignments variable="slope">
-       <eventAssignment>
-        100000
+      <listOfEventAssignments>
+       <eventAssignment variable="slope">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+         <cn>100000</cn>
+        </math>
        </eventAssignment>
       </listOfEventAssignments>
     </event>
@@ -1847,9 +1849,11 @@
        </apply>
       </math>
      </trigger>
-      <listOfEventAssignments variable="slope">
-       <eventAssignment>
-        0
+      <listOfEventAssignments>
+       <eventAssignment variable="slope">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+         <cn>0</cn>
+        </math>
        </eventAssignment>
       </listOfEventAssignments>
     </event>
