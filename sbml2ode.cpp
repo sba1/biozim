@@ -41,7 +41,7 @@ static void parse_args(int argc, char *argv[])
 
 	for (i=1;i<argc;i++)
 	{
-		if (!strcmp(argv[i],"-h") && !strcmp(argv[i],"--help"))
+		if (!strcmp(argv[i],"-h") || !strcmp(argv[i],"--help"))
 		{
 			usage(argv[0]);
 			exit(-1);
@@ -116,7 +116,7 @@ int main(int argc, char **argv)
 	settings.sample_func = sample;
 	settings.absolute_error = 1e-5;
 	settings.relative_error = 1e-5;
-	settings.time = 1000;
+	settings.time = 2000;
 	settings.steps = 2000;
 	settings.force_interpreted = force_interpreted;
 	settings.stiff = stiff;
