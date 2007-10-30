@@ -1824,7 +1824,7 @@
      <trigger>
       <math xmlns="http://www.w3.org/1998/Math/MathML">
        <apply>
-        <leq/>
+        <geq/>
         <ci>time</ci>
         <cn>1000</cn>
        </apply>
@@ -1843,7 +1843,7 @@
      <trigger>
       <math xmlns="http://www.w3.org/1998/Math/MathML">
        <apply>
-        <leq/>
+        <geq/>
         <ci>time</ci>
         <cn>1010</cn>
        </apply>
