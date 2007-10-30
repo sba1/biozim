@@ -29,6 +29,8 @@ struct simulation_context
 	unsigned int num_events;
 	struct event **events;
 
+	int *events_active;
+
 	int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
 	void *dlhandle;
 
@@ -40,8 +42,6 @@ struct simulation_context
 extern int verbose;
 
 /***********************************************/
-
-/* This is our state space */
 
 struct value *value_first;
 
@@ -62,6 +62,27 @@ struct value
 	/* The next value */
 	struct value *next;
 };
+
+/* An event assignment */
+struct assignment
+{
+	const char *value_name;
+	int idx;
+
+	ASTNode *math;
+};
+
+/* An event */
+struct event
+{
+	ASTNode *trigger;
+
+	unsigned int num_assignments;
+	struct assignment assignments[0];
+};
+
+/***********************************************/
+
 
 /*****************************************************
  Add the given parameter as value
@@ -200,24 +221,6 @@ static void value_add_reference(SpeciesReference *ref, const ASTNode *formula, A
 
 /***********************************************/
 
-struct assignment
-{
-	const char *value;
-	int idx;
-
-	ASTNode *math;
-};
-
-struct event
-{
-	ASTNode *trigger;
-
-	int numAssignments;
-	struct assignment assignments[0];
-};
-
-/***********************************************/
-
 /*************************************************
  Builds the value map.
 *************************************************/
@@ -254,6 +257,19 @@ static void simulation_context_build_value_map(struct simulation_context *sc)
 	
 	sc->values = values;
 	sc->num_values = num_values;
+}
+
+/*************************************************
+ Returns the index of the given value.
+*************************************************/
+int simulation_context_get_value_index(struct simulation_context *sc, const char *name)
+{
+	for (unsigned int i=0;i<sc->num_values;i++)
+	{
+		if (!strcmp(sc->values[i]->name,name))
+			return i;
+	}
+	return -1;
 }
 
 /*************************************************
@@ -333,13 +349,21 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		value_add_species(sp);
 	}
 
+	/* Allocate the memory for the events */
 	if (!(sc->events = (struct event**)malloc(sizeof(sc->events[0])*numEvents)))
 	{
 		fprintf(stderr,"Could not allocate memory\n");
 		goto bailout;
 	}
 	sc->num_events = numEvents;
-			
+	if (!(sc->events_active = (int*)malloc(sizeof(int)*numEvents)))
+	{
+		fprintf(stderr,"Could not allocate memory\n");
+		goto bailout;
+	}
+
+	simulation_context_build_value_map(sc);
+
 	/* Gather events */
 	for (i=0;i<numEvents;i++)
 	{
@@ -353,18 +377,21 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			goto bailout;
 	 	}
 
-	 	ev->numAssignments = numEventAssignments;
+	 	ev->num_assignments = numEventAssignments;
 	 	ev->trigger = e->getTrigger()->getMath()->deepCopy();
 
 	 	for (j=0;j<numEventAssignments;j++)
 	 	{
-	 		ev->assignments[j].value = strdup(e->getEventAssignment(j)->getName().c_str());
-	 		ev->assignments[j].math = e->getEventAssignment(j)->getMath()->deepCopy(); 
+	 		EventAssignment *ea = e->getEventAssignment(j);
+
+	 		ev->assignments[j].value_name = strdup(ea->getVariable().c_str());
+	 		ev->assignments[j].idx = simulation_context_get_value_index(sc,ev->assignments[j].value_name);
+	 		
+	 		if (ea->getMath())
+	 			ev->assignments[j].math = ea->getMath()->deepCopy();
 	 	}
 	 	sc->events[i] = ev;
 	}
-
-	simulation_context_build_value_map(sc);
 
 	/* Construct ODEs */
 	for (i=0;i<numReactions;i++)
@@ -564,20 +591,14 @@ static double evaluate(struct simulation_context *sc, const ASTNode *node)
 		case	AST_LOGICAL_OR: 	
 				break;
 		case	AST_LOGICAL_XOR: 	
-				break;
-		case	AST_RELATIONAL_EQ: 	
-				break;
-		case	AST_RELATIONAL_GEQ: 	
-				break;
-		case	AST_RELATIONAL_GT: 	
-				break;
-		case	AST_RELATIONAL_LEQ: 	
-				break;
-		case	AST_RELATIONAL_LT:
-				break;
-		case	AST_RELATIONAL_NEQ: 	
-				break;
-*/
+				break;*/
+		case	AST_RELATIONAL_EQ:  return evaluate(sc, node->getLeftChild()) == evaluate(sc, node->getRightChild());
+		case	AST_RELATIONAL_GEQ: return evaluate(sc, node->getLeftChild()) >= evaluate(sc, node->getRightChild());
+		case	AST_RELATIONAL_GT:  return evaluate(sc, node->getLeftChild()) > evaluate(sc, node->getRightChild());
+		case	AST_RELATIONAL_LEQ: return evaluate(sc, node->getLeftChild()) <= evaluate(sc, node->getRightChild());
+		case	AST_RELATIONAL_LT:  return evaluate(sc, node->getLeftChild()) < evaluate(sc, node->getRightChild());
+		case	AST_RELATIONAL_NEQ: return evaluate(sc, node->getLeftChild()) != evaluate(sc, node->getRightChild());
+
 		case	AST_UNKNOWN:
 				printf("Unknown\n");
 				break;
@@ -662,19 +683,21 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 			NV_Ith_S(ydot,i) = evaluate(sc, v->node);
 		else
 			NV_Ith_S(ydot,i) = 0;
+/*		
+		printf("d%s=%g ",v->name,NV_Ith_S(ydot,i));
+		printf("%s=%g ",v->name,v->value);
+		if (v->node) print(sc,v->node);
+		printf(" (t=%g)\n",t);*/
 	}
-
-#if 0
-	printf("\n\nt=%g\n",t);
+/*
 	for (i=0;i<sc->num_values;i++)
 	{
 		v = sc->values[i];
-		printf("%s=%g  ",sc->values[i]->name,NV_Ith_S(ydot,i));
+		printf("%s=%g ",v->name,v->value);
 		if (v->node) print(sc,v->node);
-		printf("\n");
+		printf(" (t=%g)\n",t);
 	}
-#endif
-	
+	*/
 	return 0;
 }
 
@@ -780,7 +803,7 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 }
 
 /**********************************************************
- 
+ Frees all resources allocated 
 ***********************************************************/
 static void simulation_context_finish_jit(struct simulation_context *sc)
 {
@@ -793,6 +816,52 @@ static void simulation_context_finish_jit(struct simulation_context *sc)
 	sc->dlrhs = NULL;
 }
 
+/**********************************************************
+ Perform the event handling. An event is fired, only if
+ it transists from false to true.
+***********************************************************/
+static int simulation_events(struct simulation_context *sc, double *value_space)
+{
+	unsigned int i,j;
+	unsigned int fired = 0;
+	
+	for (i=0;i<sc->num_events;i++)
+	{
+		double trigger;
+		struct event *ev;
+
+		ev = sc->events[i];
+		
+		trigger = evaluate(sc, ev->trigger);
+
+		if (trigger > 0.0)
+		{
+			if (!sc->events_active[i])
+			{
+				/* Event was active before, fire the event by executing its assignments */
+				for (j=0;j<ev->num_assignments;j++)
+				{
+					if (ev->assignments[j].idx != -1)
+					{
+						int idx;
+						
+						idx = ev->assignments[j].idx;
+						
+						fprintf(stderr,"Setting %s from %lf to %lf\n",sc->values[ev->assignments[j].idx]->name,sc->values[ev->assignments[j].idx]->value,evaluate(sc,ev->assignments[j].math));
+
+						value_space[idx] = sc->values[idx]->value = evaluate(sc,ev->assignments[j].math);
+						fired = 1;						
+					}
+					
+				}
+			}
+			sc->events_active[i] = 1;
+		} else
+			sc->events_active[i] = 0;
+	}
+	
+	return fired;
+}
 
 /**********************************************************
  Integrates the simulation.
@@ -891,6 +960,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		exit(-1);
 	}
 
+	simulation_events(sc,value_space);
 	if (settings->sample_func)
 	{
 		if (!settings->sample_func(0.0,num_values,value_space))
@@ -907,6 +977,23 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		{
 			fprintf(stderr,"CVode failed (%d)\n",flag);
 			goto out;
+		}
+
+		if (simulation_events(sc,value_space))
+		{
+			fprintf(stderr,"Reinit at %lf\n",tret);
+			/* Update values */
+
+			for (j=0;j<num_unfixed;j++)
+				NV_Ith_S(initial,j) = value_space[unfixed[j]];
+
+			/* Reinitialize the problem */
+			flag = CVodeReInit(cvode_mem, rhs, tret, initial, CV_SS, settings->relative_error, &abstol);
+			if (flag < 0)
+			{
+				fprintf(stderr,"CVodeReInit failed (%d)\n",flag);
+				goto out;
+			}
 		}
 
 		if (settings->sample_func)
@@ -952,6 +1039,7 @@ void simulation_context_free(struct simulation_context *sc)
 			free(sc->events[i]);
 		free(sc->events);
 	}
+	free(sc->events_active);
 
 	simulation_context_finish_jit(sc);
 
