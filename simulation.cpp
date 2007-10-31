@@ -27,12 +27,18 @@ struct simulation_context
 	/* Convenience-array of value names, NULL terminated */
 	char **names;
 
-	/* Contains indices to values */
+	/* Contains indices to values which have an ODE attached */
 	int *unfixed;
 
 	/* Length of the unfixed array */
 	unsigned int num_unfixed;
 
+	/* Containes indiced to values which don't have an ODE attached */
+	int *fixed;
+
+	/* Length of the fixed array */
+	unsigned int num_fixed;
+	
 	/* All events of this model */
 	struct event **events;
 	
@@ -45,6 +51,7 @@ struct simulation_context
 	/* Dynamic loading support */
 	void *dlhandle;
 	int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
+	int (*dlcheck_trigger)(double t, double *y, int *events_active);
 
 	/* Preallocated space for the dlrhs function */
 	double *dly;
@@ -304,7 +311,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	unsigned int numReactions;
 	unsigned int numParameters;
 	unsigned int numEvents;
-	unsigned int i,j;
+	unsigned int i,j,k;
 	
 	struct simulation_context *sc;
 
@@ -451,29 +458,35 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		}
 	}
 
-	/* Find unfixed variables and build a table therefrom */
+	/* Determine (un)fixed variables and build arrays therefrom */
 	for (i=0;i<sc->num_values;i++)
 	{
 		struct value *v = sc->values[i];
 		if (!v->node || v->fixed)
-			continue;
-		sc->num_unfixed++;
+			sc->num_fixed++;
 	}
+	sc->num_unfixed = sc->num_values - sc->num_fixed;
 
 	if (!(sc->unfixed = (int*)malloc(sizeof(int)*sc->num_unfixed)))
 	{
 		fprintf(stderr,"Could not parse \"%s\"\n",filename);
 		goto bailout;
 	}
-
-	for (i=0,j=0;i<sc->num_values;i++)
+	
+	if (!(sc->fixed = (int*)malloc(sizeof(int)*sc->num_fixed)))
 	{
-		struct value *v = sc->values[i];
-		if (!v->node || v->fixed)
-			continue;
-		sc->unfixed[j++] = i;
+		fprintf(stderr,"Could not parse \"%s\"\n",filename);
+		goto bailout;
 	}
 
+	for (i=0,j=0,k=0;i<sc->num_values;i++)
+	{
+		struct value *v = sc->values[i];
+		if (!v->node || v->fixed) sc->fixed[k++] = i;
+		else sc->unfixed[j++] = i;
+	}
+
+	/* Temporary space for dynamic linking stuff */
 	if (!(sc->dly = (double*)malloc(sizeof(sc->dly[0])*sc->num_unfixed)))
 	{
 		fprintf(stderr,"Not enough memory\n");
@@ -763,27 +776,90 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 	fprintf(out,"#include <stdio.h>\n");
 	fprintf(out,"#include <math.h>\n\n");
 
-	fprintf(out,"int rhs(double t, double *y, double *ydot, void *f_data)\n");
-	fprintf(out,"{\n");
+	if (sc->num_events == 0)
+	{
+		fprintf(out,"int rhs(double t, double *y, double *ydot, void *f_data)\n");
+		fprintf(out,"{\n");
+	
+		for (i=0;i<sc->num_values;i++)
+		{
+			fprintf(out,"\tdouble %s = %g;\n",sc->values[i]->name,sc->values[i]->value);
+		}
+	
+		for (i=0;i<sc->num_unfixed;i++)
+		{
+			struct value *v = sc->values[sc->unfixed[i]];
+			fprintf(out,"\t%s = y[%d];\n",v->name,i);
+		}
+		fprintf(out,"\n");
+		for (i=0;i<sc->num_unfixed;i++)
+		{
+			struct value *v = sc->values[sc->unfixed[i]];
+			char *formula = SBML_formulaToString(v->node);
+			fprintf(out,"\tydot[%d]=%s;\n",i,formula);
+		}
+		fprintf(out,"}\n");
+	} else
+	{
+		fprintf(out,"#define geq(a,b) ((a)>=(b))\n");
+		fprintf(out,"#define leq(a,b) ((a)<=(b))\n");
+		fprintf(out,"\n");
+		for (i=0;i<sc->num_fixed;i++)
+		{
+			struct value *v = sc->values[sc->fixed[i]];
+			fprintf(out,"static double %s = %g;\n",v->name,v->value);
+		}
 
-	for (i=0;i<sc->num_values;i++)
-	{
-		fprintf(out,"\tdouble %s = %g;\n",sc->values[i]->name,sc->values[i]->value);
-	}
+		/**** rhs() ****/
+		/* The arrays span the the unfixed value space */
+		fprintf(out,"\nint rhs(double t, double *y, double *ydot, void *f_data)\n");
+		fprintf(out,"{\n");
+		for (i=0;i<sc->num_unfixed;i++)
+		{
+			struct value *v = sc->values[sc->unfixed[i]];
+			fprintf(out,"\tdouble %s = y[%d];\n",v->name,i);
+		}
+		fprintf(out,"\n");
+		for (i=0;i<sc->num_unfixed;i++)
+		{
+			struct value *v = sc->values[sc->unfixed[i]];
+			char *formula = SBML_formulaToString(v->node);
+			fprintf(out,"\tydot[%d]=%s;\n",i,formula);
+		}
+		fprintf(out,"}\n\n");
 
-	for (i=0;i<sc->num_unfixed;i++)
-	{
-		struct value *v = sc->values[sc->unfixed[i]];
-		fprintf(out,"\t%s = y[%d];\n",v->name,i);
+		/**** check_trigger() ****/
+		/* The arrays span the whole value space */
+		fprintf(out,"int check_trigger(double t, double *y, int *events_active)\n{\n");
+		
+		for (i=0;i<sc->num_unfixed;i++)
+		{
+			fprintf(out,"\tdouble %s=y[%d];\n",sc->names[sc->unfixed[i]],sc->unfixed[i]);
+		}
+		fprintf(out,"\n\tint fired = 0;\n\n");
+		
+		for (i=0;i<sc->num_events;i++)
+		{
+			struct event *ev;
+
+			ev = sc->events[i];
+
+			fprintf(out, "\tif (%s)\n\t{\n",SBML_formulaToString(ev->trigger));
+			fprintf(out, "\t\tif (!events_active[%d])\n",i);
+			fprintf(out, "\t\t{\n");
+			fprintf(out, "\t\t\tevents_active[%d]=1;\n",i);
+			fprintf(out, "\t\t\tfired=1;\n");
+
+			for (unsigned j=0;j<ev->num_assignments;j++)
+			{
+				fprintf(out,"\t\t\ty[%d]=%s=%s;\n",ev->assignments[j].idx,ev->assignments[j].value_name,SBML_formulaToString(ev->assignments[j].math));
+			}
+
+			fprintf(out, "\t\t}\n");
+			fprintf(out, "\t} else events_active[%d]=0;\n",i);
+		}
+		fprintf(out,"\treturn fired;\n}\n");
 	}
-	fprintf(out,"\n");
-	for (i=0;i<sc->num_unfixed;i++)
-	{
-		struct value *v = sc->values[sc->unfixed[i]];
-		char *formula = SBML_formulaToString(v->node);
-		fprintf(out,"\tydot[%d]=%s;\n",i,formula);
-	}
-	fprintf(out,"}\n");
 	
 	/* Build the program */
 	fclose(out);
@@ -798,21 +874,22 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 		void *handle = dlopen("./test.so",RTLD_NOW);
 		if (handle)
 		{
-			int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
 			char *error;
 
-			dlrhs = (int (*)(double t, double *y, double *ydot, void *f_data))dlsym(handle,"rhs");
-			
+			sc->dlrhs = (int (*)(double t, double *y, double *ydot, void *f_data))dlsym(handle,"rhs");
 			if (!(error = dlerror()))
 			{
-				sc->dlrhs = dlrhs;
-				sc->dlhandle = handle;
-				free(command);
-				return 1;
-			} else
-			{
-				fprintf(stderr,"%s\n",error);
+				sc->dlcheck_trigger = (int (*)(double t, double *y, int *events_active))dlsym(handle,"check_trigger");
+				if (!(error = dlerror()))
+				{
+					sc->dlhandle = handle;
+					free(command);
+					return 1;
+				}
 			}
+			fprintf(stderr,"%s\n",error);
+			sc->dlrhs = NULL;
+			sc->dlcheck_trigger = NULL;
 			dlclose(handle);
 		} else
 		{
@@ -835,53 +912,61 @@ static void simulation_context_finish_jit(struct simulation_context *sc)
 	}
 
 	sc->dlrhs = NULL;
+	sc->dlcheck_trigger = NULL;
 }
 
 /**********************************************************
  Perform the event handling. An event is fired, only if
- it transists from false to true.
+ it transists from false to true. If 0 is returned, no
+ event has been occured.
 ***********************************************************/
-static int simulation_events(struct simulation_context *sc, double *value_space)
+static int simulation_context_check_trigger(struct simulation_context *sc, double t, double *value_space)
 {
-	unsigned int i,j;
-	unsigned int fired = 0;
-	
-	for (i=0;i<sc->num_events;i++)
+	if (sc->dlcheck_trigger)
 	{
-		double trigger;
-		struct event *ev;
-
-		ev = sc->events[i];
+		return sc->dlcheck_trigger(t,value_space,sc->events_active);
+	} else
+	{
+		unsigned int i,j;
+		unsigned int fired = 0;
 		
-		trigger = evaluate(sc, ev->trigger);
-
-		if (trigger > 0.0)
+		for (i=0;i<sc->num_events;i++)
 		{
-			if (!sc->events_active[i])
-			{
-				/* Event was active before, fire the event by executing its assignments */
-				for (j=0;j<ev->num_assignments;j++)
-				{
-					if (ev->assignments[j].idx != -1)
-					{
-						int idx;
-						
-						idx = ev->assignments[j].idx;
-						
-						fprintf(stderr,"Setting %s from %lf to %lf\n",sc->values[ev->assignments[j].idx]->name,sc->values[ev->assignments[j].idx]->value,evaluate(sc,ev->assignments[j].math));
-
-						value_space[idx] = sc->values[idx]->value = evaluate(sc,ev->assignments[j].math);
-						fired = 1;						
-					}
-					
-				}
-			}
-			sc->events_active[i] = 1;
-		} else
-			sc->events_active[i] = 0;
-	}
+			double trigger;
+			struct event *ev;
 	
-	return fired;
+			ev = sc->events[i];
+			
+			trigger = evaluate(sc, ev->trigger);
+	
+			if (trigger > 0.0)
+			{
+				if (!sc->events_active[i])
+				{
+					/* Event was active before, fire the event by executing its assignments */
+					for (j=0;j<ev->num_assignments;j++)
+					{
+						if (ev->assignments[j].idx != -1)
+						{
+							int idx;
+							
+							idx = ev->assignments[j].idx;
+							
+							if (verbose)
+								fprintf(stderr,"Setting %s from %lf to %lf\n",sc->values[ev->assignments[j].idx]->name,sc->values[ev->assignments[j].idx]->value,evaluate(sc,ev->assignments[j].math));
+	
+							value_space[idx] = sc->values[idx]->value = evaluate(sc,ev->assignments[j].math);
+							fired = 1;						
+						}
+						
+					}
+				}
+				sc->events_active[i] = 1;
+			} else sc->events_active[i] = 0;
+		}
+
+		return fired;
+	}
 }
 
 /**********************************************************
@@ -981,7 +1066,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		exit(-1);
 	}
 
-	simulation_events(sc,value_space);
+	simulation_context_check_trigger(sc,0,value_space);
 	if (settings->sample_func)
 	{
 		if (!settings->sample_func(0.0,num_values,value_space))
@@ -1000,11 +1085,16 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 			goto out;
 		}
 
-		if (simulation_events(sc,value_space))
-		{
-			fprintf(stderr,"Reinit at %lf\n",tret);
-			/* Update values */
+		/* Update the value space according to the ode solver */
+		for (j=0;j<num_unfixed;j++)
+			value_space[unfixed[j]] = NV_Ith_S(yout,j);
 
+		if (simulation_context_check_trigger(sc,tret,value_space))
+		{
+			if (verbose)
+				fprintf(stderr,"Reinit at %lf\n",tret);
+
+			/* Update initial values to the current values */
 			for (j=0;j<num_unfixed;j++)
 				NV_Ith_S(initial,j) = value_space[unfixed[j]];
 
@@ -1019,10 +1109,6 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 		if (settings->sample_func)
 		{
-			/* Fill the value space */
-			for (j=0;j<num_unfixed;j++)
-				value_space[unfixed[j]] = NV_Ith_S(yout,j);
-
 			if (!settings->sample_func(tmax*i/steps,num_values,value_space))
 				goto out;
 		}
@@ -1070,6 +1156,9 @@ void simulation_context_free(struct simulation_context *sc)
 	if (sc->unfixed)
 		free(sc->unfixed);
 
+	if (sc->fixed)
+		free(sc->fixed);
+	
 	if (sc->dly)
 		free(sc->dly);
 
