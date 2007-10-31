@@ -411,10 +411,11 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	for (j=0;j<numEventAssignments;j++)
 	 	{
 	 		EventAssignment *ea = e->getEventAssignment(j);
+	 		const char *name = ea->getVariable().c_str();
 
-	 		ev->assignments[j].value_name = strdup(ea->getVariable().c_str());
-	 		ev->assignments[j].idx = simulation_context_get_value_index(sc,ev->assignments[j].value_name);
-	 		
+	 		ev->assignments[j].idx = simulation_context_get_value_index(sc,name);
+	 		ev->assignments[j].value_name = sc->values[ev->assignments[j].idx]->name; /* use the same name pointer */
+
 	 		if (ea->getMath())
 	 			ev->assignments[j].math = ea->getMath()->deepCopy();
 	 	}
@@ -1143,7 +1144,12 @@ void simulation_context_free(struct simulation_context *sc)
 	if (sc->events)
 	{
 		for (unsigned int i=0;i<sc->num_events;i++)
+		{
+			delete sc->events[i]->trigger;
+			for (unsigned j=0;j<sc->events[i]->num_assignments;j++)
+				delete sc->events[i]->assignments[j].math;
 			free(sc->events[i]);
+		}
 		free(sc->events);
 	}
 	free(sc->events_active);
