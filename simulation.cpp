@@ -448,13 +448,13 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	if (verbose)
 	{
 		/* Print out ODEs */
-		printf("ODEs:\n");
+		fprintf(stderr,"ODEs:\n");
 
 		for (unsigned int i=0;i<sc->num_values;i++)
 		{
 			struct value *v = sc->values[i];
 			if (v->node)
-				printf("%s' = %s\n",v->name,SBML_formulaToString(v->node));
+				fprintf(stderr,"%s' = %s\n",v->name,SBML_formulaToString(v->node));
 		}
 	}
 
@@ -989,10 +989,10 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 	if (verbose)
 	{
-		printf("\nInitial values:\n");
+		fprintf(stderr,"\nInitial values:\n");
 		for (i=0;i<num_values;i++)
 		{
-			printf(" %s = %g\n",sc->values[i]->name, sc->values[i]->value);
+			fprintf(stderr," %s = %g\n",sc->values[i]->name, sc->values[i]->value);
 		}
 	}
 
