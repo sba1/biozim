@@ -18,21 +18,33 @@
 
 struct simulation_context
 {
-	unsigned int num_values;
+	/* All values */
 	struct value **values;
 
+	/* Length of the values array */
+	unsigned int num_values;
+
+	/* Convenience-array of value names, NULL terminated */
 	char **names;
 
+	/* Contains indices to values */
+	int *unfixed;
+
+	/* Length of the unfixed array */
 	unsigned int num_unfixed;
-	int *unfixed; /* Contains indices to values */
 
-	unsigned int num_events;
+	/* All events of this model */
 	struct event **events;
+	
+	/* The size of the events array */
+	unsigned int num_events;
 
+	/* Indicates the event's trigger state */
 	int *events_active;
 
-	int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
+	/* Dynamic loading support */
 	void *dlhandle;
+	int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
 
 	/* Preallocated space for the dlrhs function */
 	double *dly;
