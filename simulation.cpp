@@ -55,8 +55,6 @@ extern int verbose;
 
 /***********************************************/
 
-struct value *value_first;
-
 struct value
 {
 	/* The name of the value */
@@ -99,7 +97,7 @@ struct event
 /*****************************************************
  Add the given parameter as value
 ******************************************************/
-static void value_add_parameter(Parameter *p)
+static void value_add_parameter(struct value **value_first, Parameter *p)
 {
 	struct value *v = (struct value*)malloc(sizeof(*v));
 	if (!v)
@@ -115,14 +113,14 @@ static void value_add_parameter(Parameter *p)
 		exit(-1);
 	}
 	v->value = p->getValue();
-	v->next = value_first;
-	value_first = v;
+	v->next = *value_first;
+	*value_first = v;
 }
 
 /*****************************************************
  Add the given species as value
 ******************************************************/
-static void value_add_species(Species *s)
+static void value_add_species(struct value **value_first, Species *s)
 {
 	struct value *v = (struct value*)malloc(sizeof(*v));
 	if (!v)
@@ -142,23 +140,29 @@ static void value_add_species(Species *s)
 		v->value = s->getInitialAmount();
 	else
 		v->value = s->getInitialConcentration();
-	v->next = value_first;
+	v->next = *value_first;
 	v->fixed = s->getBoundaryCondition();
-	value_first = v;
+	*value_first = v;
 }
+
+/***********************************************/
 
 /*****************************************************
  Finds the complete value object by the given
  name.
 ******************************************************/
-static struct value *value_get(const char *name)
+static struct value *simulation_context_value_get(struct simulation_context *sc, const char *name)
 {
-	struct value *p = value_first;
-	while (p)
+	unsigned int i;
+
+	for (i=0;i<sc->num_values;i++)
 	{
-		if (!strcmp(name,p->name))
-			return p;
-		p = p->next;
+		struct value *v;
+
+		v = sc->values[i];
+		if (!strcmp(name,v->name))
+			return v;
+		
 	}
 	fprintf(stderr,"value %s not found\n",name);
 	return NULL;
@@ -168,10 +172,10 @@ static struct value *value_get(const char *name)
  For the given SpeciesReference add the formula
  to the right part of its ODE.
 ******************************************************/
-static void value_add_reference(SpeciesReference *ref, const ASTNode *formula, ASTNodeType_t type)
+static void simulation_context_add_reference(struct simulation_context *sc, SpeciesReference *ref, const ASTNode *formula, ASTNodeType_t type)
 {
 	struct value *v;
-	if ((v = value_get(ref->getSpecies().c_str())))
+	if ((v = simulation_context_value_get(sc,ref->getSpecies().c_str())))
 	{
 		ASTNode *prev, *minus, *copy, *stoich;
 		
@@ -231,12 +235,13 @@ static void value_add_reference(SpeciesReference *ref, const ASTNode *formula, A
 		exit(-1);
 }
 
-/***********************************************/
+
 
 /*************************************************
- Builds the value map.
+ Take a single linked list of values and build up
+ the symbol table for the simulation context.
 *************************************************/
-static void simulation_context_build_value_map(struct simulation_context *sc)
+static void simulation_context_build_symbol_table(struct simulation_context *sc, struct value *value_first)
 {
 	int i, num_values;
 	struct value **values;
@@ -303,6 +308,8 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	
 	struct simulation_context *sc;
 
+	struct value *value_first;
+
 	if (!(sc = (struct simulation_context*)malloc(sizeof(*sc))))
 	{
 		fprintf(stderr,"Could not allocate memory\n");
@@ -330,11 +337,13 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	numParameters = model->getNumParameters();
 	numEvents = model->getNumEvents();
 
+	value_first = NULL;
+
 	/* Gather global parameters */
 	for (i=0;i<numParameters;i++)
 	{
 		Parameter *p = model->getParameter(i);
-		value_add_parameter(p);
+		value_add_parameter(&value_first, p);
 	}
 
 	/* Gather parameters of the reactions */
@@ -350,7 +359,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		for (j=0;j<numParameter;j++)
 		{
 			Parameter *p = kineticLaw->getParameter(j);
-			value_add_parameter(p);
+			value_add_parameter(&value_first, p);
 		}
 	}
 
@@ -358,7 +367,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	for (i=0;i<numSpecies;i++)
 	{
 		Species *sp = model->getSpecies(i);
-		value_add_species(sp);
+		value_add_species(&value_first, sp);
 	}
 
 	/* Allocate the memory for the events */
@@ -374,7 +383,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		goto bailout;
 	}
 
-	simulation_context_build_value_map(sc);
+	simulation_context_build_symbol_table(sc, value_first);
 
 	/* Gather events */
 	for (i=0;i<numEvents;i++)
@@ -419,13 +428,13 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		for (j=0;j<reactants;j++)
 		{
 			SpeciesReference *ref = reaction->getReactant(j);
-			value_add_reference(ref, formula, AST_MINUS);
+			simulation_context_add_reference(sc, ref, formula, AST_MINUS);
 		}
 		
 		for (j=0;j<products;j++)
 		{
 			SpeciesReference *ref = reaction->getProduct(j);
-			value_add_reference(ref, formula, AST_PLUS);
+			simulation_context_add_reference(sc, ref, formula, AST_PLUS);
 		}
 	}
 
