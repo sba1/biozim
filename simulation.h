@@ -30,6 +30,7 @@ void integration_settings_init(struct integration_settings *settings);
 
 struct simulation_context *simulation_context_create_from_sbml_file(const char *filename);
 char ** simulation_get_value_names(struct simulation_context *sc);
+int simulation_context_get_value_index(struct simulation_context *sc, const char *name);
 void simulation_integrate(struct simulation_context *sc, struct integration_settings *settings);
 void simulation_context_free(struct simulation_context *sc);
 
