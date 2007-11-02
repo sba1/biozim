@@ -48,6 +48,12 @@ struct simulation_context
 	/* Indicates the event's trigger state */
 	int *events_active;
 
+	/* Number of reactions */
+	int num_reactions;
+	
+	/* The reactions */
+	struct reaction *reactions;
+
 	/* Dynamic loading support */
 	void *dlhandle;
 	int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
@@ -67,9 +73,12 @@ struct value
 	/* The name of the value */
 	char *name;
 	
-	/* The value's actual value */
+	/* The value's actual value (used for ODEs) */
 	double value;
-	
+
+	/* molecules (used for stochastic simulation) */
+	int molecules;
+
 	/* Whether fixed */
 	int fixed;
 	
@@ -96,6 +105,16 @@ struct event
 
 	unsigned int num_assignments;
 	struct assignment assignments[0];
+};
+
+/* A reaction */
+struct reaction
+{
+	/* For the stochastic simulation */
+	double h,c,a;
+
+	int num_reactants;
+	int *reactants;
 };
 
 /***********************************************/
@@ -155,6 +174,27 @@ static void value_add_species(struct value **value_first, Species *s)
 /***********************************************/
 
 /*****************************************************
+ Gets an AST of the given species reference
+******************************************************/
+static ASTNode *get_stoichiometry_ast(const SpeciesReference *ref)
+{
+	const struct StoichiometryMath *stoichMath = ref->getStoichiometryMath();
+	ASTNode *stoich;
+
+	if (stoichMath != NULL)
+	{
+		return stoichMath->getMath()->deepCopy();
+	}
+
+	if (!(stoich = new ASTNode(AST_REAL)))
+		return NULL;
+
+	stoich->setValue(ref->getStoichiometry());
+
+	return stoich;
+}
+
+/*****************************************************
  Finds the complete value object by the given
  name.
 ******************************************************/
@@ -197,21 +237,9 @@ static void simulation_context_add_reference(struct simulation_context *sc, Spec
 		if (!(minus = new ASTNode(type)))
 			goto nomem;
 
-
 		/* Extract stoichiometry factor */
-		const struct StoichiometryMath *stoichMath = ref->getStoichiometryMath();
-		if (stoichMath != NULL)
-		{
-			if (!(stoich = stoichMath->getMath()->deepCopy()))
-				goto nomem;
-		} else stoich = NULL;
-
-		if (ref->getStoichiometry() != 1.0)
-		{
-			if (!(stoich = new ASTNode(AST_REAL)))
-				goto nomem;
-			stoich->setValue(ref->getStoichiometry());
-		}
+		if (!(stoich = get_stoichiometry_ast(ref)))
+			goto nomem;
 
 		if (!(copy = formula->deepCopy()))
 			goto nomem;
@@ -421,6 +449,15 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	}
 	 	sc->events[i] = ev;
 	}
+
+	/* Allocate space for reactions */
+	sc->num_reactions = numReactions;
+	if (!(sc->reactions = (struct reaction*)malloc(sizeof(struct reaction)*sc->num_reactions)))
+	{
+		fprintf(stderr,"Not enough memory\n");
+		goto bailout;
+	}
+	memset(sc->reactions,0,sizeof(struct reaction)*sc->num_reactions);
 
 	/* Construct ODEs */
 	for (i=0;i<numReactions;i++)
@@ -917,9 +954,11 @@ static void simulation_context_finish_jit(struct simulation_context *sc)
 }
 
 /**********************************************************
- Perform the event handling. An event is fired, only if
- it transists from false to true. If 0 is returned, no
- event has been occured.
+ Perform the event handling. This encompasses the
+ evaluation of its trigger. An event is fired, iff
+ it transists from false to true.
+ 
+ This function returns 0, if no event has occured.
 ***********************************************************/
 static int simulation_context_check_trigger(struct simulation_context *sc, double t, double *value_space)
 {
@@ -967,6 +1006,21 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 		}
 
 		return fired;
+	}
+}
+
+/**********************************************************
+ Integrates the simulation using stochastic simulator
+***********************************************************/
+void simulation_integrate_stochastic(struct simulation_context *sc, struct integration_settings *settings)
+{
+	double t;
+	double tmax = settings->time;
+
+	t = 0;
+	
+	while (t < tmax)
+	{
 	}
 }
 
