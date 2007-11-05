@@ -1,6 +1,7 @@
 /* simulation.cpp */
 
 #include <dlfcn.h>
+#include <stdint.h>
 
 #include <sbml/SBMLTypes.h>
 
@@ -49,7 +50,7 @@ struct simulation_context
 	int *events_active;
 
 	/* Number of reactions */
-	int num_reactions;
+	unsigned int num_reactions;
 	
 	/* The reactions */
 	struct reaction *reactions;
@@ -107,14 +108,25 @@ struct event
 	struct assignment assignments[0];
 };
 
+/* Reference */
+struct reference
+{
+	struct value *value;
+	ASTNode *stoich;
+};
+
 /* A reaction */
 struct reaction
 {
 	/* For the stochastic simulation */
 	double h,c,a;
+	ASTNode *kinetic_law;
 
-	int num_reactants;
-	int *reactants;
+	unsigned int num_reactants;
+	struct reference *reactants;
+
+	unsigned int num_products;
+	struct reference *products;
 };
 
 /***********************************************/
@@ -163,7 +175,10 @@ static void value_add_species(struct value **value_first, Species *s)
 	}
 		
 	if (s->isSetInitialAmount())
+	{
 		v->value = s->getInitialAmount();
+		v->molecules = s->getInitialAmount();
+	}
 	else
 		v->value = s->getInitialConcentration();
 	v->next = *value_first;
@@ -174,7 +189,8 @@ static void value_add_species(struct value **value_first, Species *s)
 /***********************************************/
 
 /*****************************************************
- Gets an AST of the given species reference
+ Gets an AST of the stoichiometry factor given
+ species reference.
 ******************************************************/
 static ASTNode *get_stoichiometry_ast(const SpeciesReference *ref)
 {
@@ -470,17 +486,50 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		unsigned int reactants = reaction->getNumReactants();
 		unsigned int products = reaction->getNumProducts();
 
+		sc->reactions[i].num_reactants = reactants;
+		if (!(sc->reactions[i].reactants = (struct reference*)malloc(sizeof(sc->reactions[i].reactants[0])*reactants)))
+			goto bailout;
+		sc->reactions[i].num_products = products;
+		if (!(sc->reactions[i].products = (struct reference*)malloc(sizeof(sc->reactions[i].reactants[0])*products)))
+			goto bailout;
+
+		sc->reactions[i].kinetic_law = formula->deepCopy();
+
 		for (j=0;j<reactants;j++)
 		{
+			struct value *ref_v;
+
 			SpeciesReference *ref = reaction->getReactant(j);
 			simulation_context_add_reference(sc, ref, formula, AST_MINUS);
+			
+			if ((ref_v = simulation_context_value_get(sc,ref->getSpecies().c_str())))
+			{
+				sc->reactions[i].reactants[j].value = ref_v;
+				if (!(sc->reactions[i].reactants[j].stoich = get_stoichiometry_ast(ref)))
+				{
+					fprintf(stderr,"Not enough memory!\n");
+					goto bailout;
+				}
+			}
 		}
 		
 		for (j=0;j<products;j++)
 		{
+			struct value *ref_v;
+
 			SpeciesReference *ref = reaction->getProduct(j);
 			simulation_context_add_reference(sc, ref, formula, AST_PLUS);
-		}
+
+			if ((ref_v = simulation_context_value_get(sc,ref->getSpecies().c_str())))
+			{
+				sc->reactions[i].products[j].value = ref_v;
+				if (!(sc->reactions[i].products[j].stoich = get_stoichiometry_ast(ref)))
+				{
+					fprintf(stderr,"Not enough memory!\n");
+					goto bailout;
+				}
+			}
+}
 	}
 
 	if (verbose)
@@ -1010,6 +1059,30 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 }
 
 /**********************************************************
+ Calculates binomial
+***********************************************************/
+static uint64_t binomial(int N, int K)
+{
+	int n,k;
+
+	uint64_t binomial[N+1][K+1];
+
+	if (K==0 || K==N) return 1;
+	if (K==1 || K==N-1) return N;
+
+    /* base cases */
+    for (int k = 1; k <= K; k++) binomial[0][k] = 0;
+    for (int n = 0; n <= N; n++) binomial[n][0] = 1;
+
+    /* bottom-up dynamic programming */
+	for (n=1;n<=N;n++)
+		for (k=1;k<=K;k++)
+			binomial[n][k] = binomial[n-1][k-1] + binomial[n-1][k];
+
+	return binomial[N][K];
+}
+
+/**********************************************************
  Integrates the simulation using stochastic simulator
 ***********************************************************/
 void simulation_integrate_stochastic(struct simulation_context *sc, struct integration_settings *settings)
@@ -1021,6 +1094,56 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 	
 	while (t < tmax)
 	{
+		double a_all = 0;
+		double a_sum = 0;
+
+		/* Calculate propensities */
+		for (unsigned int i=0;i<sc->num_reactions;i++)
+		{
+			struct reaction * r= &sc->reactions[i];
+			double h_c = 1.0;
+
+			for (unsigned j=0;j<r->num_reactants;j++)
+			{
+				struct reference *ref = &r->reactants[j];
+
+				h_c *= binomial(ref->value->molecules,evaluate(sc,ref->stoich));
+			}
+
+			r->h = h_c;
+			r->c = evaluate(sc, r->kinetic_law);
+			r->a = r->h * r->c;
+
+			a_all += r->a;
+		}
+
+		double r1 = random()/(double)RAND_MAX;
+		double r2 = random()/(double)RAND_MAX;
+		
+		double tau = (1.0/a_all) * log(1.0/r1);
+
+		for (unsigned int i=0;i<sc->num_reactions;i++)
+		{
+			struct reaction *r = &sc->reactions[i];
+
+			a_sum += r->a;
+			if (a_sum >= r2*a_all)
+			{
+				for (unsigned j=0;j<r->num_reactants;j++)
+					r->reactants[j].value->molecules -= evaluate(sc,r->reactants[j].stoich); 
+				
+				for (unsigned j=0;j<r->num_products;j++)
+					r->products[j].value->molecules += evaluate(sc,r->products[j].stoich);
+				
+				break;
+			}
+		}
+		t += tau;
+
+		printf("%lf",t);
+		for (unsigned int i=0;i<sc->num_values;i++)
+			printf("\t%d",sc->values[i]->molecules);
+		printf("\n");
 	}
 }
 
@@ -1029,6 +1152,9 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 ***********************************************************/
 void simulation_integrate(struct simulation_context *sc, struct integration_settings *settings)
 {
+	simulation_integrate_stochastic(sc, settings);
+	return;
+	
 	unsigned i,j;
 	double tmax = settings->time;
 	unsigned int steps = settings->steps;
