@@ -17,6 +17,93 @@
 
 /***********************************************/
 
+struct value
+{
+	/* The name of the value */
+	char *name;
+	
+	/* The value's actual value (used for ODEs) */
+	double value;
+
+	/* molecules (used for stochastic simulation) */
+	int molecules;
+
+	/* Whether fixed */
+	int fixed;
+	
+	/* The node of ast describing the right part of the ODE */
+	ASTNode *node;
+
+	/* The next value */
+	struct value *next;
+};
+
+
+struct environment
+{
+	/* NULL for the parent environment */
+	struct environment *parent;
+
+	/* Array of values */
+	struct value **values;
+
+	/* Length of the values array */
+	unsigned int num_values;
+
+	/* Allocated length of values */
+	unsigned int num_values_allocated;
+};
+
+/*****************************************************
+ Initializes the environment
+******************************************************/
+static void environment_init(struct environment *env, struct environment *parent)
+{
+	memset(env,0,sizeof(*env));
+	env->parent = parent;
+}
+
+/*****************************************************
+ Returns the reference to the value or NULL, if
+ doesn't exist.
+******************************************************/
+struct value *environment_get_value(const struct environment *env, const char *name)
+{
+	unsigned int i;
+
+	while (env)
+	{
+		for (i=0;i<env->num_values;i++)
+		{
+			if (!strcmp(name,env->values[i]->name))
+				return env->values[i];
+		}
+		env = env->parent;
+	}
+	return NULL;
+}
+
+/*****************************************************
+ Returns the value of a varibale by its name.
+******************************************************/
+static double environment_get_value_by_name(const struct environment *env, const char *name)
+{
+	struct value *v = environment_get_value(env, name);
+	if (v) return v->value;
+	fprintf(stderr,"***Warning***: Symbol \"%s\" not found! Defaulting to 0.0\n",name);
+	return 0.0;
+}
+
+/*****************************************************
+ Returns whether the 
+******************************************************/
+static int environment_is_value_defined(const struct environment *env, const char *name)
+{
+	return !!environment_get_value(env, name);
+}
+
+/***********************************************/
+
 struct simulation_context
 {
 	/* All values */
@@ -69,27 +156,6 @@ extern int verbose;
 
 /***********************************************/
 
-struct value
-{
-	/* The name of the value */
-	char *name;
-	
-	/* The value's actual value (used for ODEs) */
-	double value;
-
-	/* molecules (used for stochastic simulation) */
-	int molecules;
-
-	/* Whether fixed */
-	int fixed;
-	
-	/* The node of ast describing the right part of the ODE */
-	ASTNode *node;
-
-	/* The next value */
-	struct value *next;
-};
-
 /* An event assignment */
 struct assignment
 {
@@ -127,6 +193,8 @@ struct reaction
 
 	unsigned int num_products;
 	struct reference *products;
+
+	struct environment env;
 };
 
 /***********************************************/
@@ -1152,8 +1220,8 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 ***********************************************************/
 void simulation_integrate(struct simulation_context *sc, struct integration_settings *settings)
 {
-	simulation_integrate_stochastic(sc, settings);
-	return;
+//	simulation_integrate_stochastic(sc, settings);
+//	return;
 	
 	unsigned i,j;
 	double tmax = settings->time;
