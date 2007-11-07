@@ -38,7 +38,6 @@ struct value
 	struct value *next;
 };
 
-
 struct environment
 {
 	/* NULL for the parent environment */
@@ -102,10 +101,60 @@ static int environment_is_value_defined(const struct environment *env, const cha
 	return !!environment_get_value(env, name);
 }
 
+/*****************************************************
+ Returns a handle to the value of the given
+ name.
+******************************************************/
+static void *environment_get_value_handle(const struct environment *env, const char *name)
+{
+	return environment_get_value_handle(env,name);
+}
+
+/*****************************************************
+ Add a new value to the environment. Returns NULL
+ on an error, i.e., if no memory was available.
+******************************************************/
+static value *environment_add_value(struct environment *env, char *name)
+{
+	struct value *v;
+
+	if (environment_is_value_defined(env,name))
+	{
+		fprintf(stderr,"Value \"%s\" is already defined!\n",name);
+		return NULL;
+	}
+
+	if (!(v = (struct value*)malloc(sizeof(struct value))))
+	{
+		fprintf(stderr,"Not enough memory!\n");
+		return NULL;
+	}
+
+	if (env->num_values >= env->num_values_allocated)
+	{
+		struct value **va;
+
+		if (!(va = (struct value**)realloc(env->values,(env->num_values_allocated+10)*2*sizeof(struct value*))))
+		{
+			fprintf(stderr,"Not enough memory!\n");
+			return NULL;
+		}
+		env->num_values_allocated = (env->num_values_allocated + 10) * 2;
+	}
+
+	memset(v,0,sizeof(struct value));
+	v->name = name;
+	env->values[env->num_values++] = v;
+	return v;
+}
+
 /***********************************************/
 
 struct simulation_context
 {
+	/* The global environment */
+	struct environment global_env;
+
 	/* All values */
 	struct value **values;
 
@@ -436,6 +485,8 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	}
 	memset(sc,0,sizeof(*sc));
 
+	environment_init(&sc->global_env, NULL);
+
 	if (!(parser = new SBMLParser(filename)))
 	{
 		fprintf(stderr,"Could not parse \"%s\"\n",filename);
@@ -597,7 +648,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 					goto bailout;
 				}
 			}
-}
+		}
 	}
 
 	if (verbose)
