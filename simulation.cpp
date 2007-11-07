@@ -114,7 +114,7 @@ static void *environment_get_value_handle(const struct environment *env, const c
  Add a new value to the environment. Returns NULL
  on an error, i.e., if no memory was available.
 ******************************************************/
-static value *environment_add_value(struct environment *env, char *name)
+static void *environment_add_value(struct environment *env, char *name)
 {
 	struct value *v;
 
@@ -148,11 +148,14 @@ static value *environment_add_value(struct environment *env, char *name)
 	return v;
 }
 
+#define environment_set_value_double(v,d) ((struct value*)v)->value = d
+
+
 /***********************************************/
 
 struct simulation_context
 {
-	/* The global environment */
+	/* The global environment, here species and global parameters are added */
 	struct environment global_env;
 
 	/* All values */
@@ -270,6 +273,27 @@ static void value_add_parameter(struct value **value_first, Parameter *p)
 	v->value = p->getValue();
 	v->next = *value_first;
 	*value_first = v;
+}
+
+/*****************************************************
+ Add a new parameter to the given value.
+******************************************************/
+static int environment_add_parameter(struct environment *env, Parameter *p)
+{
+	char *name;
+	void *handle;
+
+	if (!(name = strdup(p->getId().c_str())))
+	{
+		fprintf(stderr,"Not enough memory!\n");
+		return 0;
+	}
+
+	if ((handle = environment_add_value(env,name)))
+	{
+		environment_set_value_double(handle,p->getValue());
+		return 1;
+	}	
 }
 
 /*****************************************************
@@ -478,6 +502,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 	struct value *value_first;
 
+	/* Allocate memory for context */
 	if (!(sc = (struct simulation_context*)malloc(sizeof(*sc))))
 	{
 		fprintf(stderr,"Could not allocate memory\n");
@@ -485,8 +510,10 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	}
 	memset(sc,0,sizeof(*sc));
 
+	/* Initialize global environment */
 	environment_init(&sc->global_env, NULL);
 
+	/* Prepare SBML */
 	if (!(parser = new SBMLParser(filename)))
 	{
 		fprintf(stderr,"Could not parse \"%s\"\n",filename);
@@ -502,6 +529,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	if (!(model = doc->getModel()))
 		return 0;
 
+	/* Important parameters of SBML */
 	numSpecies = model->getNumSpecies();
 	numReactions = model->getNumReactions();
 	numParameters = model->getNumParameters();
@@ -513,13 +541,28 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	for (i=0;i<numParameters;i++)
 	{
 		Parameter *p = model->getParameter(i);
+		environment_add_parameter(&sc->global_env, p);
+		
 		value_add_parameter(&value_first, p);
 	}
+
+	/* Allocate space for reactions */
+	sc->num_reactions = numReactions;
+	if (!(sc->reactions = (struct reaction*)malloc(sizeof(struct reaction)*sc->num_reactions)))
+	{
+		fprintf(stderr,"Not enough memory\n");
+		goto bailout;
+	}
+	memset(sc->reactions,0,sizeof(struct reaction)*sc->num_reactions);
 
 	/* Gather parameters of the reactions */
 	for (i=0;i<numReactions;i++)
 	{
 		unsigned int numParameter;
+
+		/* Initialize environment of reaction parameters */
+		environment_init(&sc->reactions[i].env,&sc->global_env);
+
 
 		Reaction *reaction = model->getReaction(i);
 		KineticLaw *kineticLaw = reaction->getKineticLaw();
@@ -585,14 +628,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	sc->events[i] = ev;
 	}
 
-	/* Allocate space for reactions */
-	sc->num_reactions = numReactions;
-	if (!(sc->reactions = (struct reaction*)malloc(sizeof(struct reaction)*sc->num_reactions)))
-	{
-		fprintf(stderr,"Not enough memory\n");
-		goto bailout;
-	}
-	memset(sc->reactions,0,sizeof(struct reaction)*sc->num_reactions);
 
 	/* Construct ODEs */
 	for (i=0;i<numReactions;i++)
