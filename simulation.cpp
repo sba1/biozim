@@ -24,25 +24,17 @@ struct simulation_context
 	/* The global environment, here species and global parameters are added */
 	struct environment global_env;
 
-	/* All values */
-//	struct value **values;
-
-	/* Length of the values array */
-//	unsigned int num_values;
-
 	/* Convenience-array of value names, NULL terminated */
 	char **names;
 
 	/* Contains indices to values which have an ODE attached */
 	struct value **unfixed;
-//	int *unfixed;
 
 	/* Length of the unfixed array */
 	unsigned int num_unfixed;
 
 	/* Containes indiced to values which don't have an ODE attached */
 	struct value **fixed;
-//	int *fixed;
 
 	/* Length of the fixed array */
 	unsigned int num_fixed;
@@ -79,10 +71,7 @@ extern int verbose;
 /* An event assignment */
 struct assignment
 {
-//	const char *value_name;
 	struct value *value;
-//	int idx;
-
 	ASTNode *math;
 };
 
@@ -120,31 +109,6 @@ struct reaction
 
 /***********************************************/
 
-
-/*****************************************************
- Add the given parameter as value
-******************************************************/
-#if 0
-static void value_add_parameter(struct value **value_first, Parameter *p)
-{
-	struct value *v = (struct value*)malloc(sizeof(*v));
-	if (!v)
-	{
-		fprintf(stderr,"Not enough memory!\n");
-		exit(-1);
-	}
-	memset(v,0,sizeof(*v));
-
-	if (!(v->name = strdup(p->getId().c_str())))
-	{
-		fprintf(stderr,"Not enough memory!\n");
-		exit(-1);
-	}
-	v->value = p->getValue();
-	v->next = *value_first;
-	*value_first = v;
-}
-#endif
 
 /*****************************************************
  Add a new parameter to the given value.
@@ -199,39 +163,6 @@ static struct value *simulation_context_add_species(struct simulation_context *s
 	return v;
 }
 
-#if 0
-/*****************************************************
- Add the given species as value
-******************************************************/
-static void value_add_species(struct value **value_first, Species *s)
-{
-	struct value *v = (struct value*)malloc(sizeof(*v));
-	if (!v)
-	{
-		fprintf(stderr,"Not enough memory!\n");
-		exit(-1);
-	}
-	memset(v,0,sizeof(*v));
-
-	if (!(v->name = strdup(s->getId().c_str())))
-	{
-		fprintf(stderr,"Not enough memory!\n");
-		exit(-1);
-	}
-		
-	if (s->isSetInitialAmount())
-	{
-		v->value = s->getInitialAmount();
-		v->molecules = s->getInitialAmount();
-	}
-	else
-		v->value = s->getInitialConcentration();
-	v->next = *value_first;
-	v->fixed = s->getBoundaryCondition();
-	*value_first = v;
-}
-#endif
-
 /***********************************************/
 
 /*****************************************************
@@ -255,29 +186,6 @@ static ASTNode *get_stoichiometry_ast(const SpeciesReference *ref)
 
 	return stoich;
 }
-
-/*****************************************************
- Finds the complete value object by the given
- name.
-******************************************************/
-#if 0
-static struct value *simulation_context_value_get(struct simulation_context *sc, const char *name)
-{
-	unsigned int i;
-
-	for (i=0;i<sc->num_values;i++)
-	{
-		struct value *v;
-
-		v = sc->values[i];
-		if (!strcmp(name,v->name))
-			return v;
-		
-	}
-	fprintf(stderr,"value %s not found\n",name);
-	return NULL;
-}
-#endif
 
 /*****************************************************
  For the given SpeciesReference add the formula
@@ -334,64 +242,6 @@ static void simulation_context_add_reference(struct simulation_context *sc, Spec
 		fprintf(stderr,"Not enough memory!");
 		exit(-1);
 }
-
-
-
-/*************************************************
- Take a single linked list of values and build up
- the symbol table for the simulation context.
-*************************************************/
-#if 0
-static void simulation_context_build_symbol_table(struct simulation_context *sc, struct value *value_first)
-{
-	int i, num_values;
-	struct value **values;
-	struct value *v;
-
-	/* Convert to an array for easier access */
-
-	num_values = 0;
-	v = value_first;
-	while (v)
-	{
-		v = v->next;
-		num_values++;
-	}
-
-	if (!(values = (struct value**)malloc(sizeof(*values)*num_values)))
-	{
-		fprintf(stderr,"Not enough memory\n");
-		exit(-1);
-	}
-
-	i = 0;
-
-	v = value_first;
-	while (v)
-	{
-		values[i++] = v;
-		v = v->next;
-	}
-	
-	sc->values = values;
-	sc->num_values = num_values;
-}
-#endif
-
-/*************************************************
- Returns the index of the given value.
-*************************************************/
-#if 0
-int simulation_context_get_value_index(struct simulation_context *sc, const char *name)
-{
-	for (unsigned int i=0;i<sc->num_values;i++)
-	{
-		if (!strcmp(sc->values[i]->name,name))
-			return i;
-	}
-	return -1;
-}
-#endif
 
 /*************************************************
  Create a new simulation from an SBML file.
@@ -507,8 +357,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		fprintf(stderr,"Could not allocate memory\n");
 		goto bailout;
 	}
-
-//	simulation_context_build_symbol_table(sc, value_first);
 
 	/* Gather events */
 	for (i=0;i<numEvents;i++)
@@ -659,20 +507,6 @@ bailout:
 	if (parser) delete parser;
 	return NULL;
 }
-
-/*static double simulation_context_get_value(struct simulation_context *sc, const char *symbol)
-{
-	unsigned int i;
-	
-	for (i=0;i<sc->num_values;i++)
-	{
-		if (!strcmp(symbol,sc->values[i]->name))
-			return sc->values[i]->value;
-	}
-	fprintf(stderr,"***Warning***: Symbol \"%s\" not found!\n",symbol); 
-	return 0;
-}
-*/
 
 static double evaluate(struct environment *sc, const ASTNode *node)
 {
