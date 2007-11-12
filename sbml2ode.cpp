@@ -114,8 +114,8 @@ int main(int argc, char **argv)
 	
 	integration_settings_init(&settings);
 	settings.sample_func = sample;
-	settings.absolute_error = 1e-5;
-	settings.relative_error = 1e-5;
+	settings.absolute_error = 1e-15;
+	settings.relative_error = 1e-15;
 	settings.time = 2000;
 	settings.steps = 2000;
 	settings.force_interpreted = force_interpreted;

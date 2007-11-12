@@ -21,7 +21,7 @@ struct value
 {
 	/* The name of the value */
 	char *name;
-	
+
 	/* The value's actual value (used for ODEs) */
 	double value;
 
@@ -31,11 +31,10 @@ struct value
 	/* Whether fixed */
 	int fixed;
 	
+	int index;
+	
 	/* The node of ast describing the right part of the ODE */
 	ASTNode *node;
-
-	/* The next value */
-	struct value *next;
 };
 
 struct environment
@@ -66,7 +65,7 @@ static void environment_init(struct environment *env, struct environment *parent
  Returns the reference to the value or NULL, if
  doesn't exist.
 ******************************************************/
-struct value *environment_get_value(const struct environment *env, const char *name)
+static struct value *environment_get_value(const struct environment *env, const char *name)
 {
 	unsigned int i;
 
@@ -94,6 +93,20 @@ static double environment_get_value_by_name(const struct environment *env, const
 }
 
 /*****************************************************
+ Querys the names
+******************************************************/
+static void environment_query_all(const struct environment *env, int (*callback)(struct value *))
+{
+	unsigned int i;
+
+	for (i=0;i<env->num_values;i++)
+	{
+		if (!(callback(env->values[i])))
+			return;
+	}
+}
+
+/*****************************************************
  Returns whether the 
 ******************************************************/
 static int environment_is_value_defined(const struct environment *env, const char *name)
@@ -114,7 +127,7 @@ static void *environment_get_value_handle(const struct environment *env, const c
  Add a new value to the environment. Returns NULL
  on an error, i.e., if no memory was available.
 ******************************************************/
-static void *environment_add_value(struct environment *env, char *name)
+static struct value *environment_add_value(struct environment *env, char *name)
 {
 	struct value *v;
 
@@ -140,6 +153,7 @@ static void *environment_add_value(struct environment *env, char *name)
 			return NULL;
 		}
 		env->num_values_allocated = (env->num_values_allocated + 10) * 2;
+		env->values = va;
 	}
 
 	memset(v,0,sizeof(struct value));
@@ -147,6 +161,8 @@ static void *environment_add_value(struct environment *env, char *name)
 	env->values[env->num_values++] = v;
 	return v;
 }
+
+//static void environment_
 
 #define environment_set_value_double(v,d) ((struct value*)v)->value = d
 
@@ -159,22 +175,24 @@ struct simulation_context
 	struct environment global_env;
 
 	/* All values */
-	struct value **values;
+//	struct value **values;
 
 	/* Length of the values array */
-	unsigned int num_values;
+//	unsigned int num_values;
 
 	/* Convenience-array of value names, NULL terminated */
 	char **names;
 
 	/* Contains indices to values which have an ODE attached */
-	int *unfixed;
+	struct value **unfixed;
+//	int *unfixed;
 
 	/* Length of the unfixed array */
 	unsigned int num_unfixed;
 
 	/* Containes indiced to values which don't have an ODE attached */
-	int *fixed;
+	struct value **fixed;
+//	int *fixed;
 
 	/* Length of the fixed array */
 	unsigned int num_fixed;
@@ -211,8 +229,9 @@ extern int verbose;
 /* An event assignment */
 struct assignment
 {
-	const char *value_name;
-	int idx;
+//	const char *value_name;
+	struct value *value;
+//	int idx;
 
 	ASTNode *math;
 };
@@ -255,6 +274,7 @@ struct reaction
 /*****************************************************
  Add the given parameter as value
 ******************************************************/
+#if 0
 static void value_add_parameter(struct value **value_first, Parameter *p)
 {
 	struct value *v = (struct value*)malloc(sizeof(*v));
@@ -274,6 +294,7 @@ static void value_add_parameter(struct value **value_first, Parameter *p)
 	v->next = *value_first;
 	*value_first = v;
 }
+#endif
 
 /*****************************************************
  Add a new parameter to the given value.
@@ -281,7 +302,7 @@ static void value_add_parameter(struct value **value_first, Parameter *p)
 static int environment_add_parameter(struct environment *env, Parameter *p)
 {
 	char *name;
-	void *handle;
+	struct value *v;
 
 	if (!(name = strdup(p->getId().c_str())))
 	{
@@ -289,13 +310,46 @@ static int environment_add_parameter(struct environment *env, Parameter *p)
 		return 0;
 	}
 
-	if ((handle = environment_add_value(env,name)))
+	if ((v = environment_add_value(env,name)))
 	{
-		environment_set_value_double(handle,p->getValue());
+		v->fixed = 1;
+		environment_set_value_double(v,p->getValue());
 		return 1;
-	}	
+	}
+
+	return 0;
 }
 
+/*****************************************************
+ Add a new species to the 
+******************************************************/
+static struct value *simulation_context_add_species(struct simulation_context *sc, Species *s)
+{
+	char *name;
+	struct value *v;
+
+	if (!(name = strdup(s->getId().c_str())))
+	{
+		fprintf(stderr,"Not enough memory!\n");
+		return NULL;
+	}
+
+	if (!(v = environment_add_value(&sc->global_env, name)))
+		return NULL;
+	
+	if (s->isSetInitialAmount())
+	{
+		v->value = s->getInitialAmount();
+		v->molecules = s->getInitialAmount();
+	} else
+	{
+		v->value = s->getInitialConcentration();
+	}
+	v->fixed = s->getBoundaryCondition();
+	return v;
+}
+
+#if 0
 /*****************************************************
  Add the given species as value
 ******************************************************/
@@ -326,6 +380,7 @@ static void value_add_species(struct value **value_first, Species *s)
 	v->fixed = s->getBoundaryCondition();
 	*value_first = v;
 }
+#endif
 
 /***********************************************/
 
@@ -355,6 +410,7 @@ static ASTNode *get_stoichiometry_ast(const SpeciesReference *ref)
  Finds the complete value object by the given
  name.
 ******************************************************/
+#if 0
 static struct value *simulation_context_value_get(struct simulation_context *sc, const char *name)
 {
 	unsigned int i;
@@ -371,6 +427,7 @@ static struct value *simulation_context_value_get(struct simulation_context *sc,
 	fprintf(stderr,"value %s not found\n",name);
 	return NULL;
 }
+#endif
 
 /*****************************************************
  For the given SpeciesReference add the formula
@@ -379,7 +436,8 @@ static struct value *simulation_context_value_get(struct simulation_context *sc,
 static void simulation_context_add_reference(struct simulation_context *sc, SpeciesReference *ref, const ASTNode *formula, ASTNodeType_t type)
 {
 	struct value *v;
-	if ((v = simulation_context_value_get(sc,ref->getSpecies().c_str())))
+
+	if ((v = environment_get_value(&sc->global_env, ref->getSpecies().c_str())))
 	{
 		ASTNode *prev, *minus, *copy, *stoich;
 		
@@ -433,6 +491,7 @@ static void simulation_context_add_reference(struct simulation_context *sc, Spec
  Take a single linked list of values and build up
  the symbol table for the simulation context.
 *************************************************/
+#if 0
 static void simulation_context_build_symbol_table(struct simulation_context *sc, struct value *value_first)
 {
 	int i, num_values;
@@ -467,10 +526,12 @@ static void simulation_context_build_symbol_table(struct simulation_context *sc,
 	sc->values = values;
 	sc->num_values = num_values;
 }
+#endif
 
 /*************************************************
  Returns the index of the given value.
 *************************************************/
+#if 0
 int simulation_context_get_value_index(struct simulation_context *sc, const char *name)
 {
 	for (unsigned int i=0;i<sc->num_values;i++)
@@ -480,6 +541,7 @@ int simulation_context_get_value_index(struct simulation_context *sc, const char
 	}
 	return -1;
 }
+#endif
 
 /*************************************************
  Create a new simulation from an SBML file.
@@ -542,8 +604,13 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	{
 		Parameter *p = model->getParameter(i);
 		environment_add_parameter(&sc->global_env, p);
-		
-		value_add_parameter(&value_first, p);
+	}
+
+	/* Gather species */
+	for (i=0;i<numSpecies;i++)
+	{
+		Species *sp = model->getSpecies(i);
+		simulation_context_add_species(sc, sp);
 	}
 
 	/* Allocate space for reactions */
@@ -559,10 +626,12 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	for (i=0;i<numReactions;i++)
 	{
 		unsigned int numParameter;
+		struct reaction *r;
+
+		r = &sc->reactions[i];
 
 		/* Initialize environment of reaction parameters */
-		environment_init(&sc->reactions[i].env,&sc->global_env);
-
+		environment_init(&r->env,&sc->global_env);
 
 		Reaction *reaction = model->getReaction(i);
 		KineticLaw *kineticLaw = reaction->getKineticLaw();
@@ -572,15 +641,8 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		for (j=0;j<numParameter;j++)
 		{
 			Parameter *p = kineticLaw->getParameter(j);
-			value_add_parameter(&value_first, p);
+			environment_add_parameter(&sc->global_env, p);
 		}
-	}
-
-	/* Gather species */
-	for (i=0;i<numSpecies;i++)
-	{
-		Species *sp = model->getSpecies(i);
-		value_add_species(&value_first, sp);
 	}
 
 	/* Allocate the memory for the events */
@@ -596,7 +658,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		goto bailout;
 	}
 
-	simulation_context_build_symbol_table(sc, value_first);
+//	simulation_context_build_symbol_table(sc, value_first);
 
 	/* Gather events */
 	for (i=0;i<numEvents;i++)
@@ -619,9 +681,8 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 		EventAssignment *ea = e->getEventAssignment(j);
 	 		const char *name = ea->getVariable().c_str();
 
-	 		ev->assignments[j].idx = simulation_context_get_value_index(sc,name);
-	 		ev->assignments[j].value_name = sc->values[ev->assignments[j].idx]->name; /* use the same name pointer */
-
+	 		ev->assignments[j].value = environment_get_value(&sc->global_env, name);
+	 			
 	 		if (ea->getMath())
 	 			ev->assignments[j].math = ea->getMath()->deepCopy();
 	 	}
@@ -656,7 +717,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			SpeciesReference *ref = reaction->getReactant(j);
 			simulation_context_add_reference(sc, ref, formula, AST_MINUS);
 			
-			if ((ref_v = simulation_context_value_get(sc,ref->getSpecies().c_str())))
+			if ((ref_v = environment_get_value(&sc->global_env,ref->getSpecies().c_str())))
 			{
 				sc->reactions[i].reactants[j].value = ref_v;
 				if (!(sc->reactions[i].reactants[j].stoich = get_stoichiometry_ast(ref)))
@@ -674,7 +735,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			SpeciesReference *ref = reaction->getProduct(j);
 			simulation_context_add_reference(sc, ref, formula, AST_PLUS);
 
-			if ((ref_v = simulation_context_value_get(sc,ref->getSpecies().c_str())))
+			if ((ref_v = environment_get_value(&sc->global_env,ref->getSpecies().c_str())))
 			{
 				sc->reactions[i].products[j].value = ref_v;
 				if (!(sc->reactions[i].products[j].stoich = get_stoichiometry_ast(ref)))
@@ -686,45 +747,47 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		}
 	}
 
+	
 	if (verbose)
 	{
 		/* Print out ODEs */
+		/* TODO: Implement a query mechanism */
 		fprintf(stderr,"ODEs:\n");
 
-		for (unsigned int i=0;i<sc->num_values;i++)
+		for (unsigned int i=0;i<sc->global_env.num_values;i++)
 		{
-			struct value *v = sc->values[i];
+			struct value *v = sc->global_env.values[i];
 			if (v->node)
 				fprintf(stderr,"%s' = %s\n",v->name,SBML_formulaToString(v->node));
 		}
 	}
 
 	/* Determine (un)fixed variables and build arrays therefrom */
-	for (i=0;i<sc->num_values;i++)
+	for (i=0;i<sc->global_env.num_values;i++)
 	{
-		struct value *v = sc->values[i];
+		struct value *v = sc->global_env.values[i];
 		if (!v->node || v->fixed)
 			sc->num_fixed++;
 	}
-	sc->num_unfixed = sc->num_values - sc->num_fixed;
+	sc->num_unfixed = sc->global_env.num_values - sc->num_fixed;
 
-	if (!(sc->unfixed = (int*)malloc(sizeof(int)*sc->num_unfixed)))
+	if (!(sc->unfixed = (struct value**)malloc(sizeof(sc->unfixed[0])*sc->num_unfixed)))
 	{
 		fprintf(stderr,"Could not parse \"%s\"\n",filename);
 		goto bailout;
 	}
 	
-	if (!(sc->fixed = (int*)malloc(sizeof(int)*sc->num_fixed)))
+	if (!(sc->fixed = (struct value **)malloc(sizeof(sc->fixed[0])*sc->num_fixed)))
 	{
 		fprintf(stderr,"Could not parse \"%s\"\n",filename);
 		goto bailout;
 	}
 
-	for (i=0,j=0,k=0;i<sc->num_values;i++)
+	for (i=0,j=0,k=0;i<sc->global_env.num_values;i++)
 	{
-		struct value *v = sc->values[i];
-		if (!v->node || v->fixed) sc->fixed[k++] = i;
-		else sc->unfixed[j++] = i;
+		struct value *v = sc->global_env.values[i];
+		if (!v->node || v->fixed) sc->fixed[k++] = v;
+		else sc->unfixed[j++] = v;
 	}
 
 	/* Temporary space for dynamic linking stuff */
@@ -747,7 +810,7 @@ bailout:
 	return NULL;
 }
 
-static double simulation_context_get_value(struct simulation_context *sc, const char *symbol)
+/*static double simulation_context_get_value(struct simulation_context *sc, const char *symbol)
 {
 	unsigned int i;
 	
@@ -759,8 +822,9 @@ static double simulation_context_get_value(struct simulation_context *sc, const 
 	fprintf(stderr,"***Warning***: Symbol \"%s\" not found!\n",symbol); 
 	return 0;
 }
+*/
 
-static double evaluate(struct simulation_context *sc, const ASTNode *node)
+static double evaluate(struct environment *sc, const ASTNode *node)
 {
 //	printf("%p type=%d isOper=%d isNumber=%d\n",node,node->getType(),node->isOperator(),node->isNumber());
 
@@ -777,7 +841,7 @@ static double evaluate(struct simulation_context *sc, const ASTNode *node)
 		case	AST_REAL: return node->getReal();
 //		case	AST_REAL_E: break;
 ///		case	AST_RATIONAL: break;
-		case	AST_NAME: return simulation_context_get_value(sc, node->getName()); break;
+		case	AST_NAME: return environment_get_value_by_name(sc, node->getName()); break;
 //		case	AST_NAME_TIME: break;
 //		case	AST_CONSTANT_E: break;
 //		case	AST_CONSTANT_FALSE: break;
@@ -885,7 +949,7 @@ static double evaluate(struct simulation_context *sc, const ASTNode *node)
 	return 0;
 }
 
-static void print(struct simulation_context *sc, const ASTNode *node)
+static void print(struct environment *sc, const ASTNode *node)
 {
 //	printf("%p type=%d isOper=%d isNumber=%d\n",node,node->getType(),node->isOperator(),node->isNumber());
 
@@ -899,7 +963,7 @@ static void print(struct simulation_context *sc, const ASTNode *node)
 		case	AST_POWER: print(sc, node->getLeftChild()); printf("^"); print(sc, node->getRightChild()); break;
 		case	AST_INTEGER: printf("%ld",node->getInteger()); break;
 		case	AST_REAL: printf("%g",node->getReal()); break;
-		case	AST_NAME:  printf("%g",simulation_context_get_value(sc, node->getName())); break;
+		case	AST_NAME:  printf("%g",environment_get_value_by_name(sc, node->getName())); break;
 
 		case	AST_UNKNOWN:
 				printf("Unknown\n");
@@ -946,16 +1010,16 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 	/* Update values */
 	for (i=0;i<sc->num_unfixed;i++)
 	{
-		v = sc->values[sc->unfixed[i]];
+		v = sc->unfixed[i];
 		v->value = NV_Ith_S(y,i);
 	}
 
 	/* Calculate ydot */
 	for (i=0;i<sc->num_unfixed;i++)
 	{
-		v = sc->values[sc->unfixed[i]];
+		v = sc->unfixed[i];
 		if (v->node && !v->fixed)
-			NV_Ith_S(ydot,i) = evaluate(sc, v->node);
+			NV_Ith_S(ydot,i) = evaluate(&sc->global_env, v->node);
 		else
 			NV_Ith_S(ydot,i) = 0;
 /*		
@@ -987,11 +1051,11 @@ char **simulation_get_value_names(struct simulation_context *sc)
 
 	if (sc->names) return sc->names;
 	
-	if (!(sc->names = (char**)malloc(sizeof(char*)*(sc->num_values+1))))
+	if (!(sc->names = (char**)malloc(sizeof(char*)*(sc->global_env.num_values+1))))
 		return NULL;
 
-	for (i=0;i<sc->num_values;i++)
-		sc->names[i] = sc->values[i]->name;
+	for (i=0;i<sc->global_env.num_values;i++)
+		sc->names[i] = sc->global_env.values[i]->name;
 	sc->names[i] = NULL;
 	return sc->names;
 }
@@ -1022,24 +1086,25 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 		fprintf(out,"int rhs(double t, double *y, double *ydot, void *f_data)\n");
 		fprintf(out,"{\n");
 	
-		for (i=0;i<sc->num_values;i++)
+		for (i=0;i<sc->global_env.num_values;i++)
 		{
-			fprintf(out,"\tdouble %s = %g;\n",sc->values[i]->name,sc->values[i]->value);
+			fprintf(out,"\tdouble %s = %g;\n",sc->global_env.values[i]->name,sc->global_env.values[i]->value);
 		}
 	
 		for (i=0;i<sc->num_unfixed;i++)
 		{
-			struct value *v = sc->values[sc->unfixed[i]];
+			struct value *v = sc->unfixed[i];
 			fprintf(out,"\t%s = y[%d];\n",v->name,i);
 		}
 		fprintf(out,"\n");
 		for (i=0;i<sc->num_unfixed;i++)
 		{
-			struct value *v = sc->values[sc->unfixed[i]];
+			struct value *v = sc->unfixed[i];
 			char *formula = SBML_formulaToString(v->node);
 			fprintf(out,"\tydot[%d]=%s;\n",i,formula);
 		}
-		fprintf(out,"}\n");
+		fprintf(out,"}\n\n");
+		fprintf(out,"int check_trigger(double t, double *y, int *events_active)\n{return 0;\n}\n");
 	} else
 	{
 		fprintf(out,"#define geq(a,b) ((a)>=(b))\n");
@@ -1047,7 +1112,7 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 		fprintf(out,"\n");
 		for (i=0;i<sc->num_fixed;i++)
 		{
-			struct value *v = sc->values[sc->fixed[i]];
+			struct value *v = sc->fixed[i];
 			fprintf(out,"static double %s = %g;\n",v->name,v->value);
 		}
 
@@ -1057,13 +1122,13 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 		fprintf(out,"{\n");
 		for (i=0;i<sc->num_unfixed;i++)
 		{
-			struct value *v = sc->values[sc->unfixed[i]];
+			struct value *v = sc->unfixed[i];
 			fprintf(out,"\tdouble %s = y[%d];\n",v->name,i);
 		}
 		fprintf(out,"\n");
 		for (i=0;i<sc->num_unfixed;i++)
 		{
-			struct value *v = sc->values[sc->unfixed[i]];
+			struct value *v = sc->unfixed[i];
 			char *formula = SBML_formulaToString(v->node);
 			fprintf(out,"\tydot[%d]=%s;\n",i,formula);
 		}
@@ -1073,9 +1138,10 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 		/* The arrays span the whole value space */
 		fprintf(out,"int check_trigger(double t, double *y, int *events_active)\n{\n");
 		
-		for (i=0;i<sc->num_unfixed;i++)
+		for (i=0;i<sc->global_env.num_values;i++)
 		{
-			fprintf(out,"\tdouble %s=y[%d];\n",sc->names[sc->unfixed[i]],sc->unfixed[i]);
+			if (sc->global_env.values[i]->node)
+				fprintf(out,"\tdouble %s=y[%d];\n",sc->global_env.values[i]->name,i);
 		}
 		fprintf(out,"\n\tint fired = 0;\n\n");
 		
@@ -1093,7 +1159,9 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 
 			for (unsigned j=0;j<ev->num_assignments;j++)
 			{
-				fprintf(out,"\t\t\ty[%d]=%s=%s;\n",ev->assignments[j].idx,ev->assignments[j].value_name,SBML_formulaToString(ev->assignments[j].math));
+				struct assignment *a = &ev->assignments[j];
+
+				fprintf(out,"\t\t\ty[%d]=%s=%s;\n",a->value->index,a->value->name,SBML_formulaToString(a->math));
 			}
 
 			fprintf(out, "\t\t}\n");
@@ -1180,7 +1248,7 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 	
 			ev = sc->events[i];
 			
-			trigger = evaluate(sc, ev->trigger);
+			trigger = evaluate(&sc->global_env, ev->trigger);
 	
 			if (trigger > 0.0)
 			{
@@ -1189,16 +1257,13 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 					/* Event was active before, fire the event by executing its assignments */
 					for (j=0;j<ev->num_assignments;j++)
 					{
-						if (ev->assignments[j].idx != -1)
+						struct assignment *a = &ev->assignments[j]; 
+						if (a)
 						{
-							int idx;
-							
-							idx = ev->assignments[j].idx;
-							
 							if (verbose)
-								fprintf(stderr,"Setting %s from %lf to %lf\n",sc->values[ev->assignments[j].idx]->name,sc->values[ev->assignments[j].idx]->value,evaluate(sc,ev->assignments[j].math));
+								fprintf(stderr,"Setting %s from %lf to %lf\n",a->value->name,a->value->value,evaluate(&sc->global_env,a->math));
 	
-							value_space[idx] = sc->values[idx]->value = evaluate(sc,ev->assignments[j].math);
+							value_space[a->value->index] = a->value->value = evaluate(&sc->global_env,a->math);
 							fired = 1;						
 						}
 						
@@ -1239,6 +1304,7 @@ static uint64_t binomial(int N, int K)
 /**********************************************************
  Integrates the simulation using stochastic simulator
 ***********************************************************/
+#if 0
 void simulation_integrate_stochastic(struct simulation_context *sc, struct integration_settings *settings)
 {
 	double t;
@@ -1300,6 +1366,7 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 		printf("\n");
 	}
 }
+#endif
 
 /**********************************************************
  Integrates the simulation.
@@ -1313,13 +1380,13 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	double tmax = settings->time;
 	unsigned int steps = settings->steps;
 
-	unsigned int num_values = sc->num_values;
-	struct value **values = sc->values;
+	unsigned int num_values = sc->global_env.num_values;
+	struct value **values = sc->global_env.values;
 
-	int *unfixed = sc->unfixed;
+	struct value **unfixed = sc->unfixed;
 	unsigned int num_unfixed = sc->num_unfixed;
 
-	/* Used for the sample function */
+	/* Arrayed version of values. Mainly used for the sample function */
 	double *value_space;
 
 	if (verbose)
@@ -1327,11 +1394,11 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		fprintf(stderr,"\nInitial values:\n");
 		for (i=0;i<num_values;i++)
 		{
-			fprintf(stderr," %s = %g\n",sc->values[i]->name, sc->values[i]->value);
+			fprintf(stderr," %s = %g\n",values[i]->name, values[i]->value);
 		}
 	}
 
-	if (!(value_space = (double*)malloc(sizeof(double)*sc->num_values)))
+	if (!(value_space = (double*)malloc(sizeof(double)*num_values)))
 	{
 		fprintf(stderr,"Not enough memory!\n");
 		exit(-1);
@@ -1367,13 +1434,17 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		goto out;
 	}
 
-	/* Initialize initial values in value_space (for sample function) */
+	/* Initialize initial values in value_space (for sample function)
+	 * and indicies */
 	for (i=0;i<num_values;i++)
+	{
 		value_space[i] = values[i]->value;
+		values[i]->index = i;
+	}
 
 	/* Initialize initial values for ode solver */
 	for (i=0;i<num_unfixed;i++)
-		NV_Ith_S(initial,i) = value_space[unfixed[i]];
+		NV_Ith_S(initial,i) = unfixed[i]->value;
 	
 	if (!settings->force_interpreted && simulation_context_prepare_jit(sc))
 	{
@@ -1422,7 +1493,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 		/* Update the value space according to the ode solver */
 		for (j=0;j<num_unfixed;j++)
-			value_space[unfixed[j]] = NV_Ith_S(yout,j);
+			value_space[unfixed[j]->index] = NV_Ith_S(yout,j);
 
 		if (simulation_context_check_trigger(sc,tret,value_space))
 		{
@@ -1431,7 +1502,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 			/* Update initial values to the current values */
 			for (j=0;j<num_unfixed;j++)
-				NV_Ith_S(initial,j) = value_space[unfixed[j]];
+				NV_Ith_S(initial,j) = value_space[unfixed[j]->index];
 
 			/* Reinitialize the problem */
 			flag = CVodeReInit(cvode_mem, rhs, tret, initial, CV_SS, settings->relative_error, &abstol);
@@ -1464,6 +1535,7 @@ out:
 ***********************************************************/
 void simulation_context_free(struct simulation_context *sc)
 {
+#if 0
 	if (sc->values)
 	{
 		for (unsigned int i=0;i<sc->num_values;i++)
@@ -1474,7 +1546,7 @@ void simulation_context_free(struct simulation_context *sc)
 		}
 		free(sc->values);
 	}
-	
+#endif
 	if (sc->events)
 	{
 		for (unsigned int i=0;i<sc->num_events;i++)
