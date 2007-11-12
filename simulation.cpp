@@ -1121,10 +1121,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	/* Initialize initial values in value_space (for sample function)
 	 * and indicies */
 	for (i=0;i<num_values;i++)
-	{
 		value_space[i] = values[i]->value;
-		values[i]->index = i;
-	}
 
 	/* Initialize initial values for ode solver */
 	for (i=0;i<num_unfixed;i++)

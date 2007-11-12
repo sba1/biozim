@@ -110,6 +110,7 @@ struct value *environment_add_value(struct environment *env, char *name)
 
 	memset(v,0,sizeof(struct value));
 	v->name = name;
+	v->index = env->num_values;
 	env->values[env->num_values++] = v;
 	return v;
 }
