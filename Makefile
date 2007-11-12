@@ -1,10 +1,11 @@
 PROFILE = # -pg
-CXXFLAGS =	-O2 $(PROFILE) -g -Wall -fmessage-length=0 -fstrict-aliasing -Wstrict-aliasing
+CXXFLAGS =	-O0 $(PROFILE) -g -Wall -fmessage-length=0 -fstrict-aliasing -Wstrict-aliasing
 
 
 ODE_OBJS = ode/ODESettings.o
 SBML_OBJS = sbml/SBMLParser.o
 OBJS = $(SBML_OBJS) $(ODE_OBJS) \
+	environment.o \
 	sbml2ode.o \
 	simulation.o
 
