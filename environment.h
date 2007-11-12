@@ -1,6 +1,8 @@
 #ifndef __ENVIRONMENT_H
 #define __ENVIRONMENT_H
 
+class ASTNode;
+
 struct value
 {
 	/* The name of the value */
