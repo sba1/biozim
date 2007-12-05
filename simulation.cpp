@@ -96,15 +96,13 @@ struct reaction
 {
 	/* For the stochastic simulation */
 	double h,c,a;
-	ASTNode *kinetic_law;
+	ASTNode *formula;
 
 	unsigned int num_reactants;
 	struct reference *reactants;
 
 	unsigned int num_products;
 	struct reference *products;
-
-	struct environment env;
 };
 
 /***********************************************/
@@ -326,22 +324,92 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	for (i=0;i<numReactions;i++)
 	{
 		unsigned int numParameter;
+		unsigned int numReactants, numProducts;
 		struct reaction *r;
 
 		r = &sc->reactions[i];
 
 		/* Initialize environment of reaction parameters */
-		environment_init(&r->env,&sc->global_env);
+//		environment_init(&r->env,&sc->global_env);
 
 		Reaction *reaction = model->getReaction(i);
+		const char *reactionName = reaction->getName().c_str();
 		KineticLaw *kineticLaw = reaction->getKineticLaw();
+		ASTNode *formula = kineticLaw->getMath()->deepCopy();
 
 		numParameter = kineticLaw->getNumParameters();
-		
+		numReactants = reaction->getNumReactants();
+		numProducts = reaction->getNumProducts();
+
+		sc->reactions[i].num_reactants = numReactants;
+		if (!(sc->reactions[i].reactants = (struct reference*)malloc(sizeof(sc->reactions[i].reactants[0])*numReactants)))
+			goto bailout;
+		sc->reactions[i].num_products = numProducts;
+		if (!(sc->reactions[i].products = (struct reference*)malloc(sizeof(sc->reactions[i].reactants[0])*numProducts)))
+			goto bailout;
+
+		/* Rename local parameters */
 		for (j=0;j<numParameter;j++)
 		{
 			Parameter *p = kineticLaw->getParameter(j);
-			environment_add_parameter(&sc->global_env, p);
+			ASTNode *new_param;
+			const char *org_name = p->getName().c_str();
+			struct value *v;
+			char *new_param_name;
+
+			if (!(new_param_name = (char*)malloc(strlen(org_name) + strlen(reactionName) + 20)))
+				goto bailout;
+			sprintf(new_param_name,"%s_%s_r%d",org_name,reactionName,i);
+			if (!(new_param = new ASTNode(AST_NAME)))
+				goto bailout;
+			new_param->setName(new_param_name);
+
+			if (!(v = environment_add_value(&sc->global_env,new_param_name)))
+				goto bailout;
+			v->fixed = 1;
+			environment_set_value_double(v,p->getValue());
+
+			formula->ReplaceArgument(p->getName(),new_param);
+		}
+
+		sc->reactions[i].formula = formula;
+
+		/* Add reactants (decrease the species' concentration */
+		for (j=0;j<numReactants;j++)
+		{
+			struct value *ref_v;
+
+			SpeciesReference *ref = reaction->getReactant(j);
+			simulation_context_add_reference(sc, ref, formula, AST_MINUS);
+			
+			if ((ref_v = environment_get_value(&sc->global_env,ref->getSpecies().c_str())))
+			{
+				sc->reactions[i].reactants[j].value = ref_v;
+				if (!(sc->reactions[i].reactants[j].stoich = get_stoichiometry_ast(ref)))
+				{
+					fprintf(stderr,"Not enough memory!\n");
+					goto bailout;
+				}
+			}
+		}
+		
+		/* Add products (increase the species' concentration */
+		for (j=0;j<numProducts;j++)
+		{
+			struct value *ref_v;
+
+			SpeciesReference *ref = reaction->getProduct(j);
+			simulation_context_add_reference(sc, ref, formula, AST_PLUS);
+
+			if ((ref_v = environment_get_value(&sc->global_env,ref->getSpecies().c_str())))
+			{
+				sc->reactions[i].products[j].value = ref_v;
+				if (!(sc->reactions[i].products[j].stoich = get_stoichiometry_ast(ref)))
+				{
+					fprintf(stderr,"Not enough memory!\n");
+					goto bailout;
+				}
+			}
 		}
 	}
 
@@ -387,65 +455,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	sc->events[i] = ev;
 	}
 
-
-	/* Construct ODEs */
-	for (i=0;i<numReactions;i++)
-	{
-		Reaction *reaction = model->getReaction(i);
-		KineticLaw *kineticLaw = reaction->getKineticLaw();
-
-		const ASTNode *formula = kineticLaw->getMath();
-		
-		unsigned int reactants = reaction->getNumReactants();
-		unsigned int products = reaction->getNumProducts();
-
-		sc->reactions[i].num_reactants = reactants;
-		if (!(sc->reactions[i].reactants = (struct reference*)malloc(sizeof(sc->reactions[i].reactants[0])*reactants)))
-			goto bailout;
-		sc->reactions[i].num_products = products;
-		if (!(sc->reactions[i].products = (struct reference*)malloc(sizeof(sc->reactions[i].reactants[0])*products)))
-			goto bailout;
-
-		sc->reactions[i].kinetic_law = formula->deepCopy();
-
-		for (j=0;j<reactants;j++)
-		{
-			struct value *ref_v;
-
-			SpeciesReference *ref = reaction->getReactant(j);
-			simulation_context_add_reference(sc, ref, formula, AST_MINUS);
-			
-			if ((ref_v = environment_get_value(&sc->global_env,ref->getSpecies().c_str())))
-			{
-				sc->reactions[i].reactants[j].value = ref_v;
-				if (!(sc->reactions[i].reactants[j].stoich = get_stoichiometry_ast(ref)))
-				{
-					fprintf(stderr,"Not enough memory!\n");
-					goto bailout;
-				}
-			}
-		}
-		
-		for (j=0;j<products;j++)
-		{
-			struct value *ref_v;
-
-			SpeciesReference *ref = reaction->getProduct(j);
-			simulation_context_add_reference(sc, ref, formula, AST_PLUS);
-
-			if ((ref_v = environment_get_value(&sc->global_env,ref->getSpecies().c_str())))
-			{
-				sc->reactions[i].products[j].value = ref_v;
-				if (!(sc->reactions[i].products[j].stoich = get_stoichiometry_ast(ref)))
-				{
-					fprintf(stderr,"Not enough memory!\n");
-					goto bailout;
-				}
-			}
-		}
-	}
-
-	
 	if (verbose)
 	{
 		/* Print out ODEs */
