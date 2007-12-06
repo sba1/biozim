@@ -242,6 +242,23 @@ static void simulation_context_add_reference(struct simulation_context *sc, Spec
 }
 
 /*************************************************
+ Replaces the POWER with 
+*************************************************/
+static void fix_power_function(ASTNode *node)
+{
+	unsigned int i;
+
+	if (node->getType() == AST_POWER)
+		node->setType(AST_FUNCTION_POWER);
+
+	for (i=0;i<node->getNumChildren();i++)
+	{
+		ASTNode *n = node->getChild(i);
+		fix_power_function(n);
+	}
+}
+
+/*************************************************
  Create a new simulation from an SBML file.
 
  On failure returns NULL.
@@ -336,6 +353,8 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		const char *reactionName = reaction->getName().c_str();
 		KineticLaw *kineticLaw = reaction->getKineticLaw();
 		ASTNode *formula = kineticLaw->getMath()->deepCopy();
+
+		fix_power_function(formula);
 
 		numParameter = kineticLaw->getNumParameters();
 		numReactants = reaction->getNumReactants();
@@ -528,7 +547,7 @@ static double evaluate(struct environment *sc, const ASTNode *node)
 		case	AST_MINUS:  return evaluate(sc, node->getLeftChild()) - evaluate(sc, node->getRightChild());
 		case	AST_TIMES: return evaluate(sc, node->getLeftChild()) * evaluate(sc, node->getRightChild());
 		case	AST_DIVIDE: return evaluate(sc, node->getLeftChild()) / evaluate(sc, node->getRightChild());
-		case	AST_FUNCTION_POWER:
+		case	AST_FUNCTION_POWER: 
 		case	AST_POWER: return pow(evaluate(sc, node->getLeftChild()),evaluate(sc, node->getRightChild()));
 		case	AST_INTEGER: return node->getInteger();
 		case	AST_REAL: return node->getReal();
