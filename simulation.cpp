@@ -1016,7 +1016,6 @@ static uint64_t binomial(int N, int K)
 /**********************************************************
  Integrates the simulation using stochastic simulator
 ***********************************************************/
-#if 0
 void simulation_integrate_stochastic(struct simulation_context *sc, struct integration_settings *settings)
 {
 	double t;
@@ -1039,11 +1038,11 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 			{
 				struct reference *ref = &r->reactants[j];
 
-				h_c *= binomial(ref->value->molecules,evaluate(sc,ref->stoich));
+				h_c *= binomial(ref->value->molecules,evaluate(&sc->global_env,ref->stoich));
 			}
 
 			r->h = h_c;
-			r->c = evaluate(sc, r->kinetic_law);
+			r->c = evaluate(&sc->global_env, r->formula);
 			r->a = r->h * r->c;
 
 			a_all += r->a;
@@ -1062,10 +1061,10 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 			if (a_sum >= r2*a_all)
 			{
 				for (unsigned j=0;j<r->num_reactants;j++)
-					r->reactants[j].value->molecules -= evaluate(sc,r->reactants[j].stoich); 
+					r->reactants[j].value->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich); 
 				
 				for (unsigned j=0;j<r->num_products;j++)
-					r->products[j].value->molecules += evaluate(sc,r->products[j].stoich);
+					r->products[j].value->molecules += evaluate(&sc->global_env,r->products[j].stoich);
 				
 				break;
 			}
@@ -1073,20 +1072,19 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 		t += tau;
 
 		printf("%lf",t);
-		for (unsigned int i=0;i<sc->num_values;i++)
-			printf("\t%d",sc->values[i]->molecules);
+		for (unsigned int i=0;i<sc->global_env.num_values;i++)
+			printf("\t%d",sc->global_env.values[i]->molecules);
 		printf("\n");
 	}
 }
-#endif
 
 /**********************************************************
  Integrates the simulation.
 ***********************************************************/
 void simulation_integrate(struct simulation_context *sc, struct integration_settings *settings)
 {
-//	simulation_integrate_stochastic(sc, settings);
-//	return;
+	simulation_integrate_stochastic(sc, settings);
+	return;
 	
 	unsigned i,j;
 	double tmax = settings->time;
