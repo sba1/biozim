@@ -1031,7 +1031,7 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 		/* Calculate propensities */
 		for (unsigned int i=0;i<sc->num_reactions;i++)
 		{
-			struct reaction * r= &sc->reactions[i];
+			struct reaction *r = &sc->reactions[i];
 			double h_c = 1.0;
 
 			for (unsigned j=0;j<r->num_reactants;j++)
@@ -1079,11 +1079,191 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 }
 
 /**********************************************************
+ Integrates the simulation using stochastic simulator
+***********************************************************/
+void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct integration_settings *settings)
+{
+	unsigned int i,j;
+
+	double t;
+	double tmax = settings->time;
+
+	/* Index indicates whether reaction has been changed */
+	int changed[sc->num_reactions];
+
+	/* Contains indices of changed reactions */ 
+	unsigned int changed_list[sc->num_reactions];
+	
+	/* Number of entries in changed_list */
+	unsigned int changed_list_size = 0;
+
+	unsigned int stoich_mat[sc->num_reactions][sc->global_env.num_values];
+	unsigned int stoich_mat_entries = 0;
+
+	/* Build up boolean stoich_mat indicating which species are affected by which reaction */
+	for (i=0;i<sc->num_reactions;i++)
+	{
+		struct reaction *r = &sc->reactions[i];
+
+		for (j=0;j<r->num_reactants;j++)
+		{
+			stoich_mat[i][r->reactants[j].value->index] = 1;
+			stoich_mat_entries++;
+		}
+
+		for (j=0;j<r->num_products;j++)
+		{
+			stoich_mat[i][r->products[j].value->index] = -1;
+			stoich_mat_entries++;
+		}
+	}
+
+	/* Build a sparse array containing the indicies of reactions where the species contribute to */
+	unsigned int pos;
+	int species_participianting_in_which_reactions_flat[stoich_mat_entries + sc->global_env.num_values];
+	int *species_participianting_in_which_reactions[sc->global_env.num_values];
+
+	pos = 0; /* current position in the flat array */
+
+	for (j=0;j<sc->global_env.num_values;j++)
+	{
+		unsigned int k;
+		int *this_species_participianting_in_which_reactions;
+
+		species_participianting_in_which_reactions[j] = &species_participianting_in_which_reactions_flat[pos];
+		this_species_participianting_in_which_reactions = species_participianting_in_which_reactions[j];
+		k = 0;
+
+		for (i=0;i<sc->num_reactions;i++)
+		{
+			if (stoich_mat[i][j])
+				this_species_participianting_in_which_reactions[k++] = i;
+		}
+		this_species_participianting_in_which_reactions[k] = -1;
+		pos += k + 1;
+	}
+
+	/* Initially, we flag all reactions as changed */
+	for (i=0;i<sc->num_reactions;i++)
+		changed_list[i] = i;
+	changed_list_size = sc->num_reactions;
+
+	t = 0;
+
+	while (t < tmax)
+	{
+		double a_all, a_sum;
+
+//		printf("%d: ", changed_list_size);
+//		for (i=0;i<changed_list_size;i++)
+//		{
+//			printf("%d ",changed_list[i]);
+//		}
+//		printf("\n");
+
+		/* Calculate propensities for all changed-flagged entries */
+		for (i=0;i<changed_list_size;i++)
+		{
+			struct reaction * r = &sc->reactions[changed_list[i]];
+			double h_c = 1.0;
+
+			/* unflag */
+			changed[changed_list[i]] = 0;
+
+			for (unsigned j=0;j<r->num_reactants;j++)
+			{
+				struct reference *ref = &r->reactants[j];
+
+				h_c *= binomial(ref->value->molecules,evaluate(&sc->global_env,ref->stoich));
+			}
+
+			r->h = h_c;
+			r->c = evaluate(&sc->global_env, r->formula);
+			r->a = r->h * r->c;
+		}
+
+		changed_list_size = 0;
+		a_all = 0;
+
+		/* Calculate a_all */
+		for (i=0;i<sc->num_reactions;i++)
+		{
+			struct reaction *r = &sc->reactions[i];
+			a_all += r->a;
+		}
+
+		double r1 = random()/(double)RAND_MAX;
+		double r2 = random()/(double)RAND_MAX;
+		
+		double tau = (1.0/a_all) * log(1.0/r1);
+
+		a_sum = 0;
+
+		for (i=0;i<sc->num_reactions;i++)
+		{
+			struct reaction *r = &sc->reactions[i];
+
+			a_sum += r->a;
+			if (a_sum >= r2*a_all)
+			{
+				for (unsigned int j=0;j<r->num_reactants;j++)
+				{
+					struct value *sp = r->reactants[j].value; 
+					sp->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich);
+
+//					printf("reactants: ");
+					int *spr = species_participianting_in_which_reactions[sp->index];
+					for (unsigned int k=0;spr[k]!=-1;k++)
+					{
+//						printf("%d ",spr[k]);
+
+						if (!changed[spr[k]])
+						{
+							changed[spr[k]] = 1;
+							changed_list[changed_list_size++] = spr[k]; 
+						}
+					}
+//					printf("\n");
+				}
+				
+				for (unsigned int j=0;j<r->num_products;j++)
+				{
+					struct value *sp = r->products[j].value;
+					sp->molecules += evaluate(&sc->global_env,r->products[j].stoich);
+
+//					printf("products: ");
+					int *spr = species_participianting_in_which_reactions[sp->index];
+					for (unsigned int k=0;spr[k]!=-1;k++)
+					{
+//						printf("%d ", spr[k]);
+
+						if (!changed[spr[k]])
+						{
+							changed[spr[k]] = 1;
+							changed_list[changed_list_size++] = spr[k]; 
+						}
+					}
+//					printf("\n");
+				}
+
+				break;
+			}
+		}
+		t += tau;
+
+		printf("%lf",t);
+		for (unsigned int i=0;i<sc->global_env.num_values;i++)
+			printf("\t%d",sc->global_env.values[i]->molecules);
+		printf("\n");
+	}
+}
+
+/**********************************************************
  Integrates the simulation.
 ***********************************************************/
 void simulation_integrate(struct simulation_context *sc, struct integration_settings *settings)
 {
-	simulation_integrate_stochastic(sc, settings);
+	simulation_integrate_stochastic_quick(sc, settings);
 	return;
 	
 	unsigned i,j;
