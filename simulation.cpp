@@ -1097,8 +1097,13 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	/* Number of entries in changed_list */
 	unsigned int changed_list_size = 0;
 
-	unsigned int stoich_mat[sc->num_reactions][sc->global_env.num_values];
+	unsigned int stoich_mat_cols = sc->global_env.num_values;
+	unsigned int *stoich_mat;
 	unsigned int stoich_mat_entries = 0;
+
+	if (!(stoich_mat = (unsigned int*)malloc(sc->num_reactions * stoich_mat_cols * sizeof(unsigned int))))
+		return;
+	memset(stoich_mat,0,sc->num_reactions * stoich_mat_cols * sizeof(unsigned int));
 
 	/* Build up boolean stoich_mat indicating which species are affected by which reaction */
 	for (i=0;i<sc->num_reactions;i++)
@@ -1107,22 +1112,24 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 		for (j=0;j<r->num_reactants;j++)
 		{
-			stoich_mat[i][r->reactants[j].value->index] = 1;
+			stoich_mat[i*stoich_mat_cols + r->reactants[j].value->index] = 1;
 			stoich_mat_entries++;
 		}
 
 		for (j=0;j<r->num_products;j++)
 		{
-			stoich_mat[i][r->products[j].value->index] = -1;
+			stoich_mat[i*stoich_mat_cols + r->products[j].value->index] = -1;
 			stoich_mat_entries++;
 		}
 	}
 
 	/* Build a sparse array containing the indicies of reactions where the species contribute to */
 	unsigned int pos;
-	int species_participianting_in_which_reactions_flat[stoich_mat_entries + sc->global_env.num_values];
+	int *species_participianting_in_which_reactions_flat;
 	int *species_participianting_in_which_reactions[sc->global_env.num_values];
 
+	species_participianting_in_which_reactions_flat = (int*)malloc((stoich_mat_entries + sc->global_env.num_values)*sizeof(int));
+	
 	pos = 0; /* current position in the flat array */
 
 	for (j=0;j<sc->global_env.num_values;j++)
@@ -1136,7 +1143,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 		for (i=0;i<sc->num_reactions;i++)
 		{
-			if (stoich_mat[i][j])
+			if (stoich_mat[i*stoich_mat_cols + j])
 				this_species_participianting_in_which_reactions[k++] = i;
 		}
 		this_species_participianting_in_which_reactions[k] = -1;
@@ -1256,6 +1263,8 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			printf("\t%d",sc->global_env.values[i]->molecules);
 		printf("\n");
 	}
+	
+	free(stoich_mat);
 }
 
 /**********************************************************
@@ -1263,7 +1272,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 ***********************************************************/
 void simulation_integrate(struct simulation_context *sc, struct integration_settings *settings)
 {
-	simulation_integrate_stochastic_quick(sc, settings);
+	simulation_integrate_stochastic(sc, settings);
 	return;
 	
 	unsigned i,j;
