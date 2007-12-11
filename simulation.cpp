@@ -1180,6 +1180,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 	fprintf(out,"void gillespie(double tmax)\n");
 	fprintf(out,"{\n");
+	fprintf(out,"\tint i;\n");
 	fprintf(out,"\tdouble t=0;\n");
 	fprintf(out,"\tint changed[%d];\n",sc->num_reactions);
 	fprintf(out,"\tint changed_list[%d];\n",sc->num_reactions);
@@ -1190,12 +1191,15 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 //	fprintf(out,"\tint molecules[%d];\n",sc->global_env.num_values);
 	fprintf(out,"\n\twhile (t<tmax)\n");
 	fprintf(out,"\t{\n");
+	
+	/** First step: Calculate propensities **/
+	
 	fprintf(out,"\t\tdouble a_sum;\n");
-	fprintf(out,"\t\tfor (int i=0;i<changed_list_size;i++)\n");
+	fprintf(out,"\t\tfor (i=0;i<changed_list_size;i++)\n");
 	fprintf(out,"\t\t{\n");
 
 	/* Unflag */
-	fprintf(out,"\t\t\tchanged[changed_list[i]=0;\n");
+	fprintf(out,"\t\t\tchanged[changed_list[i]]=0;\n");
 
 	fprintf(out,"\t\t\tswitch (changed_list[i])\n");
 	fprintf(out,"\t\t\t{\n");
@@ -1222,8 +1226,23 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		fprintf(out,"\t\t\t\t\t}\n");
 		fprintf(out,"\t\t\t\t\tbreak;\n");
 	}
-	
+
 	fprintf(out,"\t\t\t}\n");
+
+	/** Second step: Calculate a_all **/
+	fprintf(out,"\t\t\tdouble a_all = 0");
+	for (i=0;i<sc->num_reactions;i++)
+		fprintf(out," + a[%d]",i);
+	fprintf(out,";\n");
+
+	/** Third step: Draw random numbers **/
+	fprintf(out,"\t\t\tdouble r1 = random()/(double)RAND_MAX;\n");
+	fprintf(out,"\t\t\tdouble r2 = random()/(double)RAND_MAX;\n");
+	fprintf(out,"\t\t\tdouble tau = (1.0/a_all) * log(1.0/r1);\n");
+
+	/** Fourth step: Find the fired reaction **/
+	fprintf(out,"\t\t\tdouble a_sum = 0;\n");
+
 	fprintf(out,"\t\t}\n");
 	fprintf(out,"\t}\n");
 	fprintf(out,"}\n");
