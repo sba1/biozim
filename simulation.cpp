@@ -1160,6 +1160,77 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	changed_list_size = sc->num_reactions;
 
 	t = 0;
+
+	/**************************************************************/
+	/* Source code generation */
+	
+	const char *filename = "test2.c";
+
+	FILE *out;
+
+	if (!(out = fopen(filename,"w")))
+	{
+		fprintf(stderr,"Unable to open \"%s\" for output.\n",filename);
+		return;
+	}
+
+	/* Build the source code */
+	fprintf(out,"#include <stdio.h>\n");
+	fprintf(out,"#include <math.h>\n\n");
+
+	fprintf(out,"void gillespie(double tmax)\n");
+	fprintf(out,"{\n");
+	fprintf(out,"\tdouble t=0;\n");
+	fprintf(out,"\tint changed[%d];\n",sc->num_reactions);
+	fprintf(out,"\tint changed_list[%d];\n",sc->num_reactions);
+	fprintf(out,"\tint changed_list_size=0;\n");
+	fprintf(out,"\tdouble h[%d];\n",sc->num_reactions);
+	fprintf(out,"\tdouble c[%d];\n",sc->num_reactions);
+	fprintf(out,"\tdouble a[%d];\n",sc->num_reactions);
+//	fprintf(out,"\tint molecules[%d];\n",sc->global_env.num_values);
+	fprintf(out,"\n\twhile (t<tmax)\n");
+	fprintf(out,"\t{\n");
+	fprintf(out,"\t\tdouble a_sum;\n");
+	fprintf(out,"\t\tfor (int i=0;i<changed_list_size;i++)\n");
+	fprintf(out,"\t\t{\n");
+
+	/* Unflag */
+	fprintf(out,"\t\t\tchanged[changed_list[i]=0;\n");
+
+	fprintf(out,"\t\t\tswitch (changed_list[i])\n");
+	fprintf(out,"\t\t\t{\n");
+	
+	for (i=0;i<sc->num_reactions;i++)
+	{
+		struct reaction *r = &sc->reactions[i];
+
+		fprintf(out,"\t\t\t\tcase\t%d:\n",i);
+		fprintf(out,"\t\t\t\t\t{\n");
+		fprintf(out,"\t\t\t\t\t\tdouble h_c = 1.0;\n");
+
+		/* Calculate h_c */
+		for (unsigned j=0;j<r->num_reactants;j++)
+		{
+			struct reference *ref = &r->reactants[j];
+			fprintf(out,"\t\t\t\t\t\th_c *= binomial(%s,%s);\n",ref->value->name,SBML_formulaToString(ref->stoich));
+		}
+
+		fprintf(out,"\t\t\t\t\t\th[%d]=h_c;\n",i);
+		fprintf(out,"\t\t\t\t\t\tc[%d]=%s;\n",i,SBML_formulaToString(r->formula));
+		fprintf(out,"\t\t\t\t\t\ta[%d]=h_c*c[%d];\n",i,i);
+		
+		fprintf(out,"\t\t\t\t\t}\n");
+		fprintf(out,"\t\t\t\t\tbreak;\n");
+	}
+	
+	fprintf(out,"\t\t\t}\n");
+	fprintf(out,"\t\t}\n");
+	fprintf(out,"\t}\n");
+	fprintf(out,"}\n");
+
+	fclose(out);
+	
+	/**************************************************************/
 	
 	double a_all = 0.0;
 
