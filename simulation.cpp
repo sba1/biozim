@@ -158,6 +158,7 @@ static struct value *simulation_context_add_species(struct simulation_context *s
 		v->value = s->getInitialConcentration();
 	}
 	v->fixed = s->getBoundaryCondition();
+	v->is_species = 1;
 	return v;
 }
 
@@ -1176,6 +1177,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 	/* Build the source code */
 	fprintf(out,"#include <stdio.h>\n");
+	fprintf(out,"#include <stdlib.h>\n");
 	fprintf(out,"#include <math.h>\n\n");
 
 	fprintf(out,"void gillespie(double tmax)\n");
@@ -1188,6 +1190,15 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\tdouble h[%d];\n",sc->num_reactions);
 	fprintf(out,"\tdouble c[%d];\n",sc->num_reactions);
 	fprintf(out,"\tdouble a[%d];\n",sc->num_reactions);
+	
+	for (i=0;i<sc->global_env.num_values;i++)
+	{
+		if (sc->global_env.values[i]->is_species)
+			fprintf(out,"\tint %s=%d;\n",sc->global_env.values[i]->name,(int)sc->global_env.values[i]->value);
+		else
+			fprintf(out,"\tdouble %s=%lf;\n",sc->global_env.values[i]->name,sc->global_env.values[i]->value);
+	}
+	
 //	fprintf(out,"\tint molecules[%d];\n",sc->global_env.num_values);
 	fprintf(out,"\n\twhile (t<tmax)\n");
 	fprintf(out,"\t{\n");
@@ -1238,10 +1249,29 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	/** Third step: Draw random numbers **/
 	fprintf(out,"\t\t\tdouble r1 = random()/(double)RAND_MAX;\n");
 	fprintf(out,"\t\t\tdouble r2 = random()/(double)RAND_MAX;\n");
+	fprintf(out,"\t\t\tdouble ar = r2*a_all;\n");
 	fprintf(out,"\t\t\tdouble tau = (1.0/a_all) * log(1.0/r1);\n");
 
 	/** Fourth step: Find the fired reaction **/
 	fprintf(out,"\t\t\tdouble a_sum = 0;\n");
+	fprintf(out,"\t\t\tfor (i=0;i<%d;i++)\n",sc->num_reactions);
+	fprintf(out,"\t\t\t{\n");
+	fprintf(out,"\t\t\t\ta_sum += a[i];\n");
+	fprintf(out,"\t\t\t\tif (a_sum >= ar)\n");
+	fprintf(out,"\t\t\t\t\tbreak;\n");
+	fprintf(out,"\t\t\t}\n");
+
+	/** Fivth step: Fire the reaction */
+	fprintf(out,"\t\t\tswitch(i)\n");
+	fprintf(out,"\t\t\t{\n");
+	for (i=0;i<sc->num_reactions;i++)
+	{
+		fprintf(out,"\t\t\t\tcase\t%d:\n",i);
+		fprintf(out,"\t\t\t\t{\n");
+		
+		fprintf(out,"\t\t\t\t}\n");
+	}
+	fprintf(out,"\t\t\t}\n");
 
 	fprintf(out,"\t\t}\n");
 	fprintf(out,"\t}\n");

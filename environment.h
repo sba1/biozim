@@ -19,7 +19,9 @@ struct value
 	
 	/* Contains the index in the environment */
 	int index;
-	
+
+	int is_species;
+
 	/* The node of ast describing the right part of the ODE (if any) */
 	ASTNode *node;
 };
