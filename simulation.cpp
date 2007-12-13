@@ -993,7 +993,7 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 /**********************************************************
  Calculates binomial
 ***********************************************************/
-static uint64_t binomial(int N, int K)
+uint64_t binomial(int N, int K)
 {
 	int n,k;
 
@@ -1155,18 +1155,10 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		pos += k + 1;
 	}
 
-	/* Initially, we flag all reactions as changed */
-	for (i=0;i<sc->num_reactions;i++)
-		changed_list[i] = i;
-	changed_list_size = sc->num_reactions;
-
-	t = 0;
-
 	/**************************************************************/
 	/* Source code generation */
 	
 	const char *filename = "test2.c";
-
 	FILE *out;
 
 	if (!(out = fopen(filename,"w")))
@@ -1175,9 +1167,12 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		return;
 	}
 
+	memset(changed,0,sizeof(changed));
+
 	/* Build the source code */
 	fprintf(out,"#include <stdio.h>\n");
 	fprintf(out,"#include <stdlib.h>\n");
+	fprintf(out,"#include <inttypes.h>\n");
 	fprintf(out,"#include <math.h>\n\n");
 
 	fprintf(out,"void gillespie(double tmax)\n");
@@ -1266,9 +1261,51 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\t\t{\n");
 	for (i=0;i<sc->num_reactions;i++)
 	{
+		struct reaction *r = &sc->reactions[i];
+
 		fprintf(out,"\t\t\t\tcase\t%d:\n",i);
 		fprintf(out,"\t\t\t\t{\n");
-		
+
+		changed_list_size = 0;
+
+		for (unsigned int j=0;j<r->num_reactants;j++)
+		{
+			struct value *sp = r->reactants[j].value; 
+			fprintf(out,"\t\t\t\t\t%s -= %s;\n",sp->name,SBML_formulaToString(r->reactants[j].stoich));
+
+			int *spr = species_participating_in_which_reactions[sp->index];
+			for (unsigned int k=0;spr[k]!=-1;k++)
+			{
+				if (!changed[spr[k]])
+				{
+					changed[spr[k]] = 1;
+					changed_list[changed_list_size++] = spr[k]; 
+				}
+			}
+		}
+
+		for (unsigned int j=0;j<r->num_products;j++)
+		{
+			struct value *sp = r->products[j].value;
+			fprintf(out,"\t\t\t\t\t%s += %s;\n",sp->name,SBML_formulaToString(r->products[j].stoich));
+
+			int *spr = species_participating_in_which_reactions[sp->index];
+			for (unsigned int k=0;spr[k]!=-1;k++)
+			{
+				if (!changed[spr[k]])
+				{
+					changed[spr[k]] = 1;
+					changed_list[changed_list_size++] = spr[k]; 
+				}
+			}
+		}
+
+		fprintf(out,"\t\t\t\t\tchanged_list_size=%d;\n",changed_list_size);
+		for (unsigned int j = 0; j<changed_list_size;j++)
+		{
+			fprintf(out,"\t\t\t\t\tchanged_list[%d]=%d;\n",j,changed_list[j]);
+			changed[changed_list[j]] = 0;
+		}
 		fprintf(out,"\t\t\t\t}\n");
 	}
 	fprintf(out,"\t\t\t}\n");
@@ -1281,6 +1318,13 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	
 	/**************************************************************/
 	
+	/* Initially, we flag all reactions as changed */
+	for (i=0;i<sc->num_reactions;i++)
+		changed_list[i] = i;
+	changed_list_size = sc->num_reactions;
+
+	t = 0;
+
 	double a_all = 0.0;
 
 	while (t < tmax)
