@@ -1335,59 +1335,51 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 //		fprintf(stderr,"a_all=%lf a_all_full=%lf\n",a_all,a_all_full);
 		double r1 = random()/(double)RAND_MAX;
 		double r2 = random()/(double)RAND_MAX;
-		
+		double ar = r2*a_all;
 		double tau = (1.0/a_all) * log(1.0/r1);
 
 		a_sum = 0;
 
 		for (i=0;i<sc->num_reactions;i++)
 		{
-			struct reaction *r = &sc->reactions[i];
-
-			a_sum += r->a;
-			if (a_sum >= r2*a_all)
-			{
-				for (unsigned int j=0;j<r->num_reactants;j++)
-				{
-					struct value *sp = r->reactants[j].value; 
-					sp->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich);
-
-//					printf("reactants: ");
-					int *spr = species_participating_in_which_reactions[sp->index];
-					for (unsigned int k=0;spr[k]!=-1;k++)
-					{
-//						printf("%d ",spr[k]);
-
-						if (!changed[spr[k]])
-						{
-							changed[spr[k]] = 1;
-							changed_list[changed_list_size++] = spr[k]; 
-						}
-					}
-//					printf("\n");
-				}
-				
-				for (unsigned int j=0;j<r->num_products;j++)
-				{
-					struct value *sp = r->products[j].value;
-					sp->molecules += evaluate(&sc->global_env,r->products[j].stoich);
-
-//					printf("products: ");
-					int *spr = species_participating_in_which_reactions[sp->index];
-					for (unsigned int k=0;spr[k]!=-1;k++)
-					{
-//						printf("%d ", spr[k]);
-
-						if (!changed[spr[k]])
-						{
-							changed[spr[k]] = 1;
-							changed_list[changed_list_size++] = spr[k]; 
-						}
-					}
-//					printf("\n");
-				}
-
+			a_sum += sc->reactions[i].a;
+			if (a_sum >= ar)
 				break;
+		}
+
+		if (i < sc->num_reactions)
+		{
+			struct reaction *r = &sc->reactions[i];
+			for (unsigned int j=0;j<r->num_reactants;j++)
+			{
+				struct value *sp = r->reactants[j].value; 
+				sp->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich);
+
+				int *spr = species_participating_in_which_reactions[sp->index];
+				for (unsigned int k=0;spr[k]!=-1;k++)
+				{
+					if (!changed[spr[k]])
+					{
+						changed[spr[k]] = 1;
+						changed_list[changed_list_size++] = spr[k]; 
+					}
+				}
+			}
+				
+			for (unsigned int j=0;j<r->num_products;j++)
+			{
+				struct value *sp = r->products[j].value;
+				sp->molecules += evaluate(&sc->global_env,r->products[j].stoich);
+
+				int *spr = species_participating_in_which_reactions[sp->index];
+				for (unsigned int k=0;spr[k]!=-1;k++)
+				{
+					if (!changed[spr[k]])
+					{
+						changed[spr[k]] = 1;
+						changed_list[changed_list_size++] = spr[k]; 
+					}
+				}
 			}
 		}
 		t += tau;
