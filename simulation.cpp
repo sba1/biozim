@@ -89,6 +89,7 @@ struct reference
 {
 	struct value *value;
 	ASTNode *stoich;
+	int stoich_value; /* -1 means no plain integer value (stoich needs to be evaluated) */
 };
 
 /* A reaction */
@@ -394,7 +395,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 		sc->reactions[i].formula = formula;
 
-		/* Add reactants (decrease the species' concentration */
+		/* Add reactants (decrease the species' concentration) */
 		for (j=0;j<numReactants;j++)
 		{
 			struct value *ref_v;
@@ -1106,6 +1107,8 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		return;
 	memset(stoich_mat,0,sc->num_reactions * stoich_mat_cols * sizeof(unsigned int));
 
+	srandom(0);
+
 	/* Build up boolean stoich_mat indicating which species are affected by which reaction */
 	for (i=0;i<sc->num_reactions;i++)
 	{
@@ -1179,7 +1182,6 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"{\n");
 	fprintf(out,"\tint i;\n");
 	fprintf(out,"\tdouble t=0;\n");
-	fprintf(out,"\tint changed[%d];\n",sc->num_reactions);
 	fprintf(out,"\tint changed_list[%d];\n",sc->num_reactions);
 	fprintf(out,"\tint changed_list_size=0;\n");
 	fprintf(out,"\tdouble h[%d];\n",sc->num_reactions);
@@ -1193,19 +1195,23 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		else
 			fprintf(out,"\tdouble %s=%lf;\n",sc->global_env.values[i]->name,sc->global_env.values[i]->value);
 	}
-	
+
+	for (i=0;i<sc->num_reactions;i++)
+		fprintf(out,"\t\tchanged_list[%d]=%d;\n",i,i);
+	fprintf(out,"\t\tchanged_list_size=%d;\n",sc->num_reactions);
+
 //	fprintf(out,"\tint molecules[%d];\n",sc->global_env.num_values);
 	fprintf(out,"\n\twhile (t<tmax)\n");
 	fprintf(out,"\t{\n");
 	
 	/** First step: Calculate propensities **/
 	
-	fprintf(out,"\t\tdouble a_sum;\n");
+//	fprintf(out,"\t\tdouble a_sum;\n");
 	fprintf(out,"\t\tfor (i=0;i<changed_list_size;i++)\n");
 	fprintf(out,"\t\t{\n");
 
 	/* Unflag */
-	fprintf(out,"\t\t\tchanged[changed_list[i]]=0;\n");
+//	fprintf(out,"\t\t\tchanged[changed_list[i]]=0;\n");
 
 	fprintf(out,"\t\t\tswitch (changed_list[i])\n");
 	fprintf(out,"\t\t\t{\n");
@@ -1222,56 +1228,90 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		for (unsigned j=0;j<r->num_reactants;j++)
 		{
 			struct reference *ref = &r->reactants[j];
-			fprintf(out,"\t\t\t\t\t\th_c *= binomial(%s,%s);\n",ref->value->name,SBML_formulaToString(ref->stoich));
+			int need_binomial = 1;
+
+			if (ref->stoich->getType() == AST_INTEGER)
+			{
+				if (ref->stoich->getInteger() == 1)
+				{
+					fprintf(out,"\t\t\t\t\t\th_c *= %s;\n",ref->value->name);
+					need_binomial = 0;
+				} else if (ref->stoich->getInteger() == 2)
+				{
+					fprintf(out,"\t\t\t\t\t\th_c *= %s * (%s - 1) / 2;\n",ref->value->name,ref->value->name);
+					need_binomial = 0;
+				}
+			}
+
+			if (ref->stoich->getType() == AST_REAL)
+			{
+				if (ref->stoich->getReal() == 1.0)
+				{
+					fprintf(out,"\t\t\t\t\t\th_c *= %s;\n",ref->value->name);
+					need_binomial = 0;
+				} else if (ref->stoich->getReal() == 2.0)
+				{
+					fprintf(out,"\t\t\t\t\t\th_c *= %s * (%s - 1) / 2;\n",ref->value->name,ref->value->name);
+					need_binomial = 0;
+				}
+			}
+
+			if (need_binomial)
+				fprintf(out,"\t\t\t\t\t\th_c *= binomial(%s,%s);\n",ref->value->name,SBML_formulaToString(ref->stoich));
 		}
 
 		fprintf(out,"\t\t\t\t\t\th[%d]=h_c;\n",i);
 		fprintf(out,"\t\t\t\t\t\tc[%d]=%s;\n",i,SBML_formulaToString(r->formula));
 		fprintf(out,"\t\t\t\t\t\ta[%d]=h_c*c[%d];\n",i,i);
+//		fprintf(out,"\t\t\t\t\t\tfprintf(stderr,\"a[%d]=%%lf\\n\",a[%d]);",i,i);
 		
 		fprintf(out,"\t\t\t\t\t}\n");
 		fprintf(out,"\t\t\t\t\tbreak;\n");
 	}
 
 	fprintf(out,"\t\t\t}\n");
+	fprintf(out,"\t\t}\n");
 
 	/** Second step: Calculate a_all **/
-	fprintf(out,"\t\t\tdouble a_all = 0");
+	fprintf(out,"\t\tdouble a_all = 0");
 	for (i=0;i<sc->num_reactions;i++)
 		fprintf(out," + a[%d]",i);
 	fprintf(out,";\n");
 
 	/** Third step: Draw random numbers **/
-	fprintf(out,"\t\t\tdouble r1 = random()/(double)RAND_MAX;\n");
-	fprintf(out,"\t\t\tdouble r2 = random()/(double)RAND_MAX;\n");
-	fprintf(out,"\t\t\tdouble ar = r2*a_all;\n");
-	fprintf(out,"\t\t\tdouble tau = (1.0/a_all) * log(1.0/r1);\n");
+	fprintf(out,"\t\tdouble r1 = random()/(double)RAND_MAX;\n");
+	fprintf(out,"\t\tdouble r2 = random()/(double)RAND_MAX;\n");
+	fprintf(out,"\t\tdouble ar = r2*a_all;\n");
+	fprintf(out,"\t\tdouble tau = (1.0/a_all) * log(1.0/r1);\n");
 
 	/** Fourth step: Find the fired reaction **/
-	fprintf(out,"\t\t\tdouble a_sum = 0;\n");
-	fprintf(out,"\t\t\tfor (i=0;i<%d;i++)\n",sc->num_reactions);
-	fprintf(out,"\t\t\t{\n");
-	fprintf(out,"\t\t\t\ta_sum += a[i];\n");
-	fprintf(out,"\t\t\t\tif (a_sum >= ar)\n");
-	fprintf(out,"\t\t\t\t\tbreak;\n");
-	fprintf(out,"\t\t\t}\n");
+	fprintf(out,"\t\tdouble a_sum = 0;\n");
+	fprintf(out,"\t\tfor (i=0;i<%d;i++)\n",sc->num_reactions);
+	fprintf(out,"\t\t{\n");
+	fprintf(out,"\t\t\ta_sum += a[i];\n");
+	fprintf(out,"\t\t\tif (a_sum >= ar)\n");
+	fprintf(out,"\t\t\t\tbreak;\n");
+	fprintf(out,"\t\t}\n");
+
+//	fprintf(out,"\t\tfprintf(stderr,\"a_all=%%lf a_all_full=%%lf a_sum=%%lf r1=%%lf r2=%%lf reaction=%%d\\n\",a_all,a_all,a_sum,r1,r2,i);\n");
 
 	/** Fivth step: Fire the reaction */
-	fprintf(out,"\t\t\tswitch(i)\n");
-	fprintf(out,"\t\t\t{\n");
+	fprintf(out,"\t\tswitch(i)\n");
+	fprintf(out,"\t\t{\n");
 	for (i=0;i<sc->num_reactions;i++)
 	{
 		struct reaction *r = &sc->reactions[i];
 
-		fprintf(out,"\t\t\t\tcase\t%d:\n",i);
-		fprintf(out,"\t\t\t\t{\n");
+		fprintf(out,"\t\t\tcase\t%d:\n",i);
+		fprintf(out,"\t\t\t{\n");
 
 		changed_list_size = 0;
 
 		for (unsigned int j=0;j<r->num_reactants;j++)
 		{
 			struct value *sp = r->reactants[j].value; 
-			fprintf(out,"\t\t\t\t\t%s -= %s;\n",sp->name,SBML_formulaToString(r->reactants[j].stoich));
+			fprintf(out,"\t\t\t\t%s -= %s;\n",sp->name,SBML_formulaToString(r->reactants[j].stoich));
+//			fprintf(out,"\t\t\t\tif (%s < 0) %s = 0;\n",sp->name,sp->name);
 
 			int *spr = species_participating_in_which_reactions[sp->index];
 			for (unsigned int k=0;spr[k]!=-1;k++)
@@ -1287,7 +1327,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		for (unsigned int j=0;j<r->num_products;j++)
 		{
 			struct value *sp = r->products[j].value;
-			fprintf(out,"\t\t\t\t\t%s += %s;\n",sp->name,SBML_formulaToString(r->products[j].stoich));
+			fprintf(out,"\t\t\t\t%s += %s;\n",sp->name,SBML_formulaToString(r->products[j].stoich));
 
 			int *spr = species_participating_in_which_reactions[sp->index];
 			for (unsigned int k=0;spr[k]!=-1;k++)
@@ -1300,17 +1340,34 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			}
 		}
 
-		fprintf(out,"\t\t\t\t\tchanged_list_size=%d;\n",changed_list_size);
+		fprintf(out,"\t\t\t\tchanged_list_size=%d;\n",changed_list_size);
 		for (unsigned int j = 0; j<changed_list_size;j++)
 		{
-			fprintf(out,"\t\t\t\t\tchanged_list[%d]=%d;\n",j,changed_list[j]);
+			fprintf(out,"\t\t\t\tchanged_list[%d]=%d;\n",j,changed_list[j]);
 			changed[changed_list[j]] = 0;
 		}
-		fprintf(out,"\t\t\t\t}\n");
+		fprintf(out,"\t\t\t\tbreak;\n");
+		fprintf(out,"\t\t\t}\n");
 	}
-	fprintf(out,"\t\t\t}\n");
-
+	
+	fprintf(out,"\t\tdefault: changed_list_size = 0; break;\n");
+	
 	fprintf(out,"\t\t}\n");
+
+
+	fprintf(out,"\t\tt += tau;\n");
+
+	/** Finally, print out */
+/*	fprintf(out,"\t\tprintf(\"%%g\",t);\n");
+	fprintf(out,"\t\tprintf(\"\\t%%g\",tau);\n");
+	for (unsigned int i=0;i<sc->global_env.num_values;i++)
+	{
+		if (sc->global_env.values[i]->is_species)
+			fprintf(out,"\t\tprintf(\"\\t%%d\",%s);\n",sc->global_env.values[i]->name);
+	}
+	fprintf(out,"\t\tprintf(\"\\n\");\n");
+*/
+
 	fprintf(out,"\t}\n");
 	fprintf(out,"}\n");
 
@@ -1345,6 +1402,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			struct reaction * r = &sc->reactions[changed_list[i]];
 			double h_c = 1.0;
 
+//			fprintf(stderr,"%d ", changed_list[i]);
 			/* unflag */
 			changed[changed_list[i]] = 0;
 
@@ -1360,8 +1418,13 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 //			double a_old = r->a;
 			r->a = r->h * r->c;
+			
+//			fprintf(stderr,"a[%d]=%f\n",changed_list[i],r->a);
+//
+			
 //			a_all += r->a - a_old;
 		}
+//		fprintf(stderr,"\n");
 
 		changed_list_size = 0;
 
@@ -1376,7 +1439,6 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 		a_all = a_all_full;
 
-//		fprintf(stderr,"a_all=%lf a_all_full=%lf\n",a_all,a_all_full);
 		double r1 = random()/(double)RAND_MAX;
 		double r2 = random()/(double)RAND_MAX;
 		double ar = r2*a_all;
@@ -1391,6 +1453,8 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 				break;
 		}
 
+//		fprintf(stderr,"a_all=%lf a_all_full=%lf a_sum=%lf r1=%lf r2=%lf reaction=%d\n",a_all,a_all_full,a_sum,r1,r2,i);
+
 		if (i < sc->num_reactions)
 		{
 			struct reaction *r = &sc->reactions[i];
@@ -1398,6 +1462,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			{
 				struct value *sp = r->reactants[j].value; 
 				sp->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich);
+				sp->value = sp->molecules;
 
 				int *spr = species_participating_in_which_reactions[sp->index];
 				for (unsigned int k=0;spr[k]!=-1;k++)
@@ -1414,6 +1479,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			{
 				struct value *sp = r->products[j].value;
 				sp->molecules += evaluate(&sc->global_env,r->products[j].stoich);
+				sp->value = sp->molecules;
 
 				int *spr = species_participating_in_which_reactions[sp->index];
 				for (unsigned int k=0;spr[k]!=-1;k++)
@@ -1428,10 +1494,11 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		}
 		t += tau;
 
-		printf("%lf",t);
+/*		printf("%g",t);
+		printf("\t%g",tau);
 		for (unsigned int i=0;i<sc->global_env.num_values;i++)
 			printf("\t%d",sc->global_env.values[i]->molecules);
-		printf("\n");
+		printf("\n");*/
 	}
 	
 	free(stoich_mat);
