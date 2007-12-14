@@ -1173,6 +1173,9 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		pos += k + 1;
 	}
 
+	free(stoich_mat);
+	stoich_mat = NULL;
+
 	/**************************************************************/
 	/* Source code generation */
 	
@@ -1193,7 +1196,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"#include <inttypes.h>\n");
 	fprintf(out,"#include <math.h>\n\n");
 
-	fprintf(out,"double gillespie(double tmax, int steps, int (*callback)(double t, int *states))\n");
+	fprintf(out,"double gillespie(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata)\n");
 	fprintf(out,"{\n");
 
 	fprintf(out,"\tint i;\n");
@@ -1376,20 +1379,9 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\ttcb += tau;\n");
 	fprintf(out,"\t\tif (tcb > tdelta)\n");
 	fprintf(out,"\t\t{\n");
-	fprintf(out,"\t\t\tif (callback) callback(t,molecules);\n");
+	fprintf(out,"\t\t\tif (callback) callback(t,molecules,userdata);\n");
 	fprintf(out,"\t\t\ttcb -= tdelta;\n");
 	fprintf(out,"\t\t}\n");
-
-	/** Finally, print out */
-/*	fprintf(out,"\t\tprintf(\"%%g\",t);\n");
-	fprintf(out,"\t\tprintf(\"\\t%%g\",tau);\n");
-	for (unsigned int i=0;i<sc->global_env.num_values;i++)
-	{
-		if (sc->global_env.values[i]->is_species)
-			fprintf(out,"\t\tprintf(\"\\t%%d\",%s);\n",sc->global_env.values[i]->name);
-	}
-	fprintf(out,"\t\tprintf(\"\\n\");\n");
-*/
 
 	fprintf(out,"\t}\n");
 	fprintf(out,"}\n");
@@ -1544,8 +1536,6 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		printf("\n");
 */
 	}
-	
-	free(stoich_mat);
 }
 
 /**********************************************************
