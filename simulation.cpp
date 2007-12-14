@@ -1379,6 +1379,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\ttcb += tau;\n");
 	fprintf(out,"\t\tif (tcb > tdelta)\n");
 	fprintf(out,"\t\t{\n");
+	fprintf(out,"\t\t\tprintf(\"%%g\\n\",t);\n");
 	fprintf(out,"\t\t\tif (callback) callback(t,molecules,userdata);\n");
 	fprintf(out,"\t\t\ttcb -= tdelta;\n");
 	fprintf(out,"\t\t}\n");
@@ -1387,6 +1388,40 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"}\n");
 
 	fclose(out);
+	
+	/**************************************************************/
+	
+	/* Now compile and execute the stuff */
+	char *command;
+	int rc;
+
+	if (!(command = (char*)malloc(500)))
+		return;
+
+	snprintf(command,500,"gcc -O3 -fPIC -shared test2.c -o test2.so");
+	fprintf(stderr,"%s\n",command);
+
+	if (!(rc = system(command)))
+	{
+		void *handle = dlopen("./test2.so",RTLD_NOW);
+		if (handle)
+		{
+			double (*gillespie)(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata);
+			
+			gillespie = (double (*)(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata))dlsym(handle,"gillespie");
+			if (!(dlerror()))
+			{
+				gillespie(settings->time, settings->steps, NULL, NULL);
+				dlclose(handle);
+				return;
+			} else
+			{
+				fprintf(stderr,"Could not found gillespie() function.\n");
+			}
+
+			dlclose(handle);
+		}
+	}
 	
 	/**************************************************************/
 	
