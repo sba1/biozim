@@ -261,6 +261,21 @@ static void fix_power_function(ASTNode *node)
 }
 
 /*************************************************
+ Returns the integer value of the given node
+ or -1, if it is no integer value.
+*************************************************/
+int get_AST_integer_value(ASTNode *node)
+{
+	if (node->getType() == AST_INTEGER)
+		return node->getInteger();
+
+	if (node->getType() == AST_REAL && node->getReal() == (int)node->getReal())
+		return (int)node->getReal();
+
+	return -1;
+}
+
+/*************************************************
  Create a new simulation from an SBML file.
 
  On failure returns NULL.
@@ -411,6 +426,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 					fprintf(stderr,"Not enough memory!\n");
 					goto bailout;
 				}
+				sc->reactions[i].reactants[j].stoich_value = get_AST_integer_value(sc->reactions[i].reactants[j].stoich);;
 			}
 		}
 		
@@ -430,6 +446,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 					fprintf(stderr,"Not enough memory!\n");
 					goto bailout;
 				}
+				sc->reactions[i].products[j].stoich_value = get_AST_integer_value(sc->reactions[i].products[j].stoich);
 			}
 		}
 	}
@@ -1228,36 +1245,26 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		for (unsigned j=0;j<r->num_reactants;j++)
 		{
 			struct reference *ref = &r->reactants[j];
-			int need_binomial = 1;
+			int int_val = ref->stoich_value;
 
-			if (ref->stoich->getType() == AST_INTEGER)
+			switch (int_val)
 			{
-				if (ref->stoich->getInteger() == 1)
-				{
-					fprintf(out,"\t\t\t\t\t\th_c *= %s;\n",ref->value->name);
-					need_binomial = 0;
-				} else if (ref->stoich->getInteger() == 2)
-				{
-					fprintf(out,"\t\t\t\t\t\th_c *= %s * (%s - 1) / 2;\n",ref->value->name,ref->value->name);
-					need_binomial = 0;
-				}
-			}
+				case	0:
+						fprintf(out,"\t\t\t\t\t\th_c = 0;\n");
+						break;
 
-			if (ref->stoich->getType() == AST_REAL)
-			{
-				if (ref->stoich->getReal() == 1.0)
-				{
-					fprintf(out,"\t\t\t\t\t\th_c *= %s;\n",ref->value->name);
-					need_binomial = 0;
-				} else if (ref->stoich->getReal() == 2.0)
-				{
-					fprintf(out,"\t\t\t\t\t\th_c *= %s * (%s - 1) / 2;\n",ref->value->name,ref->value->name);
-					need_binomial = 0;
-				}
-			}
+				case	1:
+						fprintf(out,"\t\t\t\t\t\th_c *= %s;\n",ref->value->name);
+						break;
 
-			if (need_binomial)
-				fprintf(out,"\t\t\t\t\t\th_c *= binomial(%s,%s);\n",ref->value->name,SBML_formulaToString(ref->stoich));
+				case	2:
+						fprintf(out,"\t\t\t\t\t\th_c *= %s * (%s - 1) / 2;\n",ref->value->name,ref->value->name);
+						break;
+
+				default:
+						fprintf(out,"\t\t\t\t\t\th_c *= binomial(%s,%s);\n",ref->value->name,SBML_formulaToString(ref->stoich));
+						break;
+			}
 		}
 
 		fprintf(out,"\t\t\t\t\t\th[%d]=h_c;\n",i);
@@ -1410,7 +1417,27 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			{
 				struct reference *ref = &r->reactants[j];
 
-				h_c *= binomial(ref->value->molecules,evaluate(&sc->global_env,ref->stoich));
+				int int_val = ref->stoich_value;
+
+				switch (int_val)
+				{
+					case	0:
+							h_c = 0;
+							break;
+
+					case	1:
+							h_c *= ref->value->molecules;
+							break;
+
+					case	2:
+							h_c *= (double)ref->value->molecules * (double)(ref->value->molecules - 1)/2; 
+							break;
+
+					default:
+							h_c *= binomial(ref->value->molecules,evaluate(&sc->global_env,ref->stoich));
+							break;
+				}
+
 			}
 
 			r->h = h_c;
@@ -1498,7 +1525,8 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		printf("\t%g",tau);
 		for (unsigned int i=0;i<sc->global_env.num_values;i++)
 			printf("\t%d",sc->global_env.values[i]->molecules);
-		printf("\n");*/
+		printf("\n");
+*/
 	}
 	
 	free(stoich_mat);
