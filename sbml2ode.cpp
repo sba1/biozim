@@ -10,6 +10,7 @@
 static const char *model_filename;
 static int force_interpreted;
 static int stiff;
+static int stochastic;
 int verbose; /* used by other modules */
 
 
@@ -54,6 +55,9 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--stiff"))
 		{
 			stiff = 1;
+		} else if (!strcmp(argv[i],"--stochastic"))
+		{
+			stochastic = 1;
 		} else
 		{
 			filename_given = 1;
@@ -116,9 +120,10 @@ int main(int argc, char **argv)
 	settings.sample_func = sample;
 	settings.absolute_error = 1e-10;
 	settings.relative_error = 1e-10;
-	settings.time = 5000;
+	settings.time = 0.000020;//5000;
 	settings.steps = 5000;
 	settings.force_interpreted = force_interpreted;
+	settings.stochastic = stochastic;
 	settings.stiff = stiff;
 
 	simulation_integrate(sc,&settings);

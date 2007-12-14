@@ -1124,8 +1124,6 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		return;
 	memset(stoich_mat,0,sc->num_reactions * stoich_mat_cols * sizeof(unsigned int));
 
-	srandom(0);
-
 	/* Build up boolean stoich_mat indicating which species are affected by which reaction */
 	for (i=0;i<sc->num_reactions;i++)
 	{
@@ -1195,24 +1193,36 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"#include <inttypes.h>\n");
 	fprintf(out,"#include <math.h>\n\n");
 
-	fprintf(out,"void gillespie(double tmax)\n");
+	fprintf(out,"double gillespie(double tmax, int steps, int (*callback)(double t, int *states))\n");
 	fprintf(out,"{\n");
+
 	fprintf(out,"\tint i;\n");
 	fprintf(out,"\tdouble t=0;\n");
+	fprintf(out,"\tdouble tdelta = tmax / steps;\n");
+	fprintf(out,"\tdouble tcb = 0;\n");
 	fprintf(out,"\tint changed_list[%d];\n",sc->num_reactions);
 	fprintf(out,"\tint changed_list_size=0;\n");
 	fprintf(out,"\tdouble h[%d];\n",sc->num_reactions);
 	fprintf(out,"\tdouble c[%d];\n",sc->num_reactions);
 	fprintf(out,"\tdouble a[%d];\n",sc->num_reactions);
 	
+	fprintf(out,"\tint molecules[%d];\n",sc->global_env.num_values);
+	
 	for (i=0;i<sc->global_env.num_values;i++)
 	{
-		if (sc->global_env.values[i]->is_species)
-			fprintf(out,"\tint %s=%d;\n",sc->global_env.values[i]->name,(int)sc->global_env.values[i]->value);
-		else
+		if (!sc->global_env.values[i]->is_species)
 			fprintf(out,"\tdouble %s=%lf;\n",sc->global_env.values[i]->name,sc->global_env.values[i]->value);
 	}
 
+	for (i=0;i<sc->global_env.num_values;i++)
+	{
+		if (sc->global_env.values[i]->is_species)
+		{
+			fprintf(out,"\t#define %s molecules[%d]\n",sc->global_env.values[i]->name,i);
+			fprintf(out,"\t%s=%d;\n",sc->global_env.values[i]->name,sc->global_env.values[i]->molecules);
+		}
+	}
+	
 	for (i=0;i<sc->num_reactions;i++)
 		fprintf(out,"\t\tchanged_list[%d]=%d;\n",i,i);
 	fprintf(out,"\t\tchanged_list_size=%d;\n",sc->num_reactions);
@@ -1361,8 +1371,14 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	
 	fprintf(out,"\t\t}\n");
 
-
 	fprintf(out,"\t\tt += tau;\n");
+	
+	fprintf(out,"\t\ttcb += tau;\n");
+	fprintf(out,"\t\tif (tcb > tdelta)\n");
+	fprintf(out,"\t\t{\n");
+	fprintf(out,"\t\t\tif (callback) callback(t,molecules);\n");
+	fprintf(out,"\t\t\ttcb -= tdelta;\n");
+	fprintf(out,"\t\t}\n");
 
 	/** Finally, print out */
 /*	fprintf(out,"\t\tprintf(\"%%g\",t);\n");
@@ -1537,8 +1553,11 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 ***********************************************************/
 void simulation_integrate(struct simulation_context *sc, struct integration_settings *settings)
 {
-	simulation_integrate_stochastic_quick(sc, settings);
-	return;
+	if (settings->stochastic)
+	{
+		simulation_integrate_stochastic_quick(sc, settings);
+		return;
+	}
 	
 	unsigned i,j;
 	double tmax = settings->time;

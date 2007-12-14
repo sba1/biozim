@@ -24,6 +24,9 @@ struct integration_settings
 	
 	/* Use integerator for stiff systems */
 	int stiff;
+
+	/* Use stochastic simulator */
+	int stochastic;
 };
 
 void integration_settings_init(struct integration_settings *settings);
