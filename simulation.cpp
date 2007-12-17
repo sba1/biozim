@@ -33,6 +33,12 @@ struct simulation_context
 	/* Length of the unfixed array */
 	unsigned int num_unfixed;
 
+	/* Valid during stochastic integration. Value space */
+	double *value_space;
+
+	/* Valid during stochastic integration. The sampling function. It is called for every sampled time point */
+	int (*sample_func)(double time, int num_values, double *values);
+
 	/* Containes indiced to values which don't have an ODE attached */
 	struct value **fixed;
 
@@ -1100,6 +1106,24 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 /**********************************************************
  Integrates the simulation using stochastic simulator
 ***********************************************************/
+static int gillespie_jit_callback(double t, int *states, void *userdata)
+{
+	struct simulation_context *sc;
+	unsigned int i;
+
+	sc = (struct simulation_context*)userdata;
+
+	for (i=0;i<sc->global_env.num_values;i++)
+		sc->value_space[i] = states[i];
+
+	sc = (struct simulation_context *)userdata;
+
+	return sc->sample_func(t,sc->global_env.num_values, sc->value_space);
+}
+
+/**********************************************************
+ Integrates the simulation using stochastic simulator
+***********************************************************/
 void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct integration_settings *settings)
 {
 	unsigned int i,j;
@@ -1119,6 +1143,10 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	unsigned int stoich_mat_cols = sc->global_env.num_values;
 	int *stoich_mat;
 	unsigned int stoich_mat_entries = 0;
+
+	sc->sample_func = settings->sample_func;
+	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
+		return;
 
 	if (!(stoich_mat = (int*)malloc(sc->num_reactions * stoich_mat_cols * sizeof(unsigned int))))
 		return;
@@ -1379,7 +1407,6 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\ttcb += tau;\n");
 	fprintf(out,"\t\tif (tcb > tdelta)\n");
 	fprintf(out,"\t\t{\n");
-	fprintf(out,"\t\t\tprintf(\"%%g\\n\",t);\n");
 	fprintf(out,"\t\t\tif (callback) callback(t,molecules,userdata);\n");
 	fprintf(out,"\t\t\ttcb -= tdelta;\n");
 	fprintf(out,"\t\t}\n");
@@ -1411,7 +1438,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			gillespie = (double (*)(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata))dlsym(handle,"gillespie");
 			if (!(dlerror()))
 			{
-				gillespie(settings->time, settings->steps, NULL, NULL);
+				gillespie(settings->time, settings->steps, gillespie_jit_callback, sc);
 				dlclose(handle);
 				return;
 			} else
@@ -1571,6 +1598,8 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		printf("\n");
 */
 	}
+	free(sc->value_space);
+	sc->value_space = NULL;
 }
 
 /**********************************************************
