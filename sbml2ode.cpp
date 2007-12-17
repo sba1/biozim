@@ -11,6 +11,8 @@ static const char *model_filename;
 static int force_interpreted;
 static int stiff;
 static int stochastic;
+static double maxtime;
+
 int verbose; /* used by other modules */
 
 
@@ -25,7 +27,8 @@ static void usage(char *name)
 			"\t-h, --help               show this help and quit.\n"
 			"\t    --verbose            verbose output.\n"
 			"\t    --force-interpreted  forces the interpreted calculation of the rhs.\n"
-			"\t    --stiff              use solver for stiff ODEs.\n",
+			"\t    --stiff              use solver for stiff ODEs.\n"
+			"\t    --maxtime            specifies the end time (defaults to 1).\n",
 			name);
 
 	exit(1);
@@ -58,7 +61,27 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--stochastic"))
 		{
 			stochastic = 1;
-		} else
+		} else if (!strcmp(argv[i],"--maxtime"))
+		{
+			char *nr_arg;
+			
+			if (argv[i][9]=='=')
+				nr_arg = &argv[i][10];
+			else
+			{
+				nr_arg = argv[i+1];
+				i++;
+				
+				if (i>=argc)
+				{
+					fprintf(stderr,"The --maxtime option needs an argument.\n");
+					exit(-1);
+				}
+			}
+			maxtime = strtod(nr_arg, NULL);
+			printf("%g\n",maxtime);
+		}
+		else
 		{
 			filename_given = 1;
 			if (strcmp(argv[i],"-"))
@@ -120,7 +143,7 @@ int main(int argc, char **argv)
 	settings.sample_func = sample;
 	settings.absolute_error = 1e-10;
 	settings.relative_error = 1e-10;
-	settings.time = 0.000020;//5000;
+	settings.time = maxtime;
 	settings.steps = 5000;
 	settings.force_interpreted = force_interpreted;
 	settings.stochastic = stochastic;
