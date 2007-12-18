@@ -1233,6 +1233,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\tdouble tcb = 0;\n");
 	fprintf(out,"\tint changed_list[%d];\n",sc->num_reactions);
 	fprintf(out,"\tint changed_list_size=0;\n");
+	fprintf(out,"\tdouble acum[%d];\n",sc->num_reactions);
 	fprintf(out,"\tdouble h[%d];\n",sc->num_reactions);
 	fprintf(out,"\tdouble c[%d];\n",sc->num_reactions);
 	fprintf(out,"\tdouble a[%d];\n",sc->num_reactions);
@@ -1320,11 +1321,22 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\t\t}\n");
 	fprintf(out,"\t\t}\n");
 
+#if 1
 	/** Second step: Calculate a_all **/
 	fprintf(out,"\t\tdouble a_all = 0");
 	for (i=0;i<sc->num_reactions;i++)
 		fprintf(out," + a[%d]",i);
 	fprintf(out,";\n");
+#else
+
+	/** Second step: Calculate a_cum */
+	fprintf(out,"\t\tacum[0] = a[0];\n");
+	fprintf(out,"\t\tfor (i=1;i<%d;i++)\n",sc->num_reactions);
+	fprintf(out,"\t\t{\n");
+	fprintf(out,"\t\t\tacum[i] = acum[i-1] + a[i];\n");
+	fprintf(out,"\t\t}\n");
+	fprintf(out,"\t\tdouble a_all = acum[%d];\n",sc->num_reactions-1);
+#endif
 
 	/** Third step: Draw random numbers **/
 	fprintf(out,"\t\tdouble r1 = random()/(double)RAND_MAX;\n");
@@ -1333,6 +1345,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\tdouble tau = (1.0/a_all) * log(1.0/r1);\n");
 
 	/** Fourth step: Find the fired reaction **/
+#if 1
 	fprintf(out,"\t\tdouble a_sum = 0;\n");
 	fprintf(out,"\t\tfor (i=0;i<%d;i++)\n",sc->num_reactions);
 	fprintf(out,"\t\t{\n");
@@ -1340,8 +1353,19 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\t\tif (a_sum >= ar)\n");
 	fprintf(out,"\t\t\t\tbreak;\n");
 	fprintf(out,"\t\t}\n");
+#else
+	fprintf(out,"\t\tint l = 0;\n");
+	fprintf(out,"\t\tint r = %d;\n",sc->num_reactions-1);
+	fprintf(out,"\t\twhile (l < r)\n");
+	fprintf(out,"\t\t{\n");
+	fprintf(out,"\t\t\tint m = (r+l)/2;\n");
+	fprintf(out,"\t\t\tif (acum[m] > ar) r=m;\n");
+	fprintf(out,"\t\t\t\telse l=m+1;\n");
+	fprintf(out,"\t\t}\n");
+	fprintf(out,"\t\ti=l;\n");
+#endif
 
-//	fprintf(out,"\t\tfprintf(stderr,\"a_all=%%lf a_all_full=%%lf a_sum=%%lf r1=%%lf r2=%%lf reaction=%%d\\n\",a_all,a_all,a_sum,r1,r2,i);\n");
+	//	fprintf(out,"\t\tfprintf(stderr,\"a_all=%%lf a_all_full=%%lf a_sum=%%lf r1=%%lf r2=%%lf reaction=%%d\\n\",a_all,a_all,a_sum,r1,r2,i);\n");
 
 	/** Fivth step: Fire the reaction */
 	fprintf(out,"\t\tswitch(i)\n");
