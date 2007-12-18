@@ -1239,8 +1239,8 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 #ifdef USE_CUMSUM
 	fprintf(out,"\tdouble acum[%d];\n",sc->num_reactions);
 #endif
-	fprintf(out,"\tdouble h[%d];\n",sc->num_reactions);
-	fprintf(out,"\tdouble c[%d];\n",sc->num_reactions);
+//	fprintf(out,"\tdouble h[%d];\n",sc->num_reactions);
+//	fprintf(out,"\tdouble c[%d];\n",sc->num_reactions);
 	fprintf(out,"\tdouble a[%d];\n",sc->num_reactions);
 	
 	fprintf(out,"\tint molecules[%d];\n",sc->global_env.num_values);
@@ -1314,10 +1314,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			}
 		}
 
-		fprintf(out,"\t\t\t\t\t\th[%d]=h_c;\n",i);
-		fprintf(out,"\t\t\t\t\t\tc[%d]=%s;\n",i,SBML_formulaToString(r->formula));
-		fprintf(out,"\t\t\t\t\t\ta[%d]=h_c*c[%d];\n",i,i);
-//		fprintf(out,"\t\t\t\t\t\tfprintf(stderr,\"a[%d]=%%lf\\n\",a[%d]);",i,i);
+		fprintf(out,"\t\t\t\t\t\ta[%d]=h_c*%s;\n",i,SBML_formulaToString(r->formula));
 		
 		fprintf(out,"\t\t\t\t\t}\n");
 		fprintf(out,"\t\t\t\t\tbreak;\n");
