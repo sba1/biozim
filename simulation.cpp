@@ -1125,6 +1125,47 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
 }
 
 /**********************************************************
+ Writes out the code for the propensity calculation.
+***********************************************************/
+static void simulation_write_propensity_calculation(FILE *out, struct simulation_context *sc, int i)
+{
+	struct reaction *r = &sc->reactions[i];
+
+	fprintf(out,"\t{\n");
+	fprintf(out,"\t\tdouble h_c = 1.0;\n");
+
+	/* Calculate h_c */
+	for (unsigned j=0;j<r->num_reactants;j++)
+	{
+		struct reference *ref = &r->reactants[j];
+		int int_val = ref->stoich_value;
+
+		switch (int_val)
+		{
+			case	0:
+					fprintf(out,"\t\th_c = 0;\n");
+					break;
+
+			case	1:
+					fprintf(out,"\t\th_c *= %s;\n",ref->value->name);
+					break;
+
+			case	2:
+					fprintf(out,"\t\th_c *= %s * (%s - 1) / 2;\n",ref->value->name,ref->value->name);
+					break;
+
+			default:
+					fprintf(out,"\t\th_c *= binomial(%s,%s);\n",ref->value->name,SBML_formulaToString(ref->stoich));
+					break;
+		}
+	}
+
+	fprintf(out,"\t\ta[%d]=h_c*%s;\n",i,SBML_formulaToString(r->formula));
+	fprintf(out,"\t}\n");
+
+}
+
+/**********************************************************
  Integrates the simulation using stochastic simulator
 ***********************************************************/
 void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct integration_settings *settings)
@@ -1234,8 +1275,8 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\tdouble t=0;\n");
 	fprintf(out,"\tdouble tdelta = tmax / steps;\n");
 	fprintf(out,"\tdouble tcb = 0;\n");
-	fprintf(out,"\tint changed_list[%d];\n",sc->num_reactions);
-	fprintf(out,"\tint changed_list_size=0;\n");
+//	fprintf(out,"\tint changed_list[%d];\n",sc->num_reactions);
+//	fprintf(out,"\tint changed_list_size=0;\n");
 #ifdef USE_CUMSUM
 	fprintf(out,"\tdouble acum[%d];\n",sc->num_reactions);
 #endif
@@ -1260,69 +1301,14 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		}
 	}
 	
+	/** Calculate initial propensities **/
 	for (i=0;i<sc->num_reactions;i++)
-		fprintf(out,"\t\tchanged_list[%d]=%d;\n",i,i);
-	fprintf(out,"\t\tchanged_list_size=%d;\n",sc->num_reactions);
-
-//	fprintf(out,"\tint molecules[%d];\n",sc->global_env.num_values);
+		simulation_write_propensity_calculation(out,sc,i);
+	
 	fprintf(out,"\n\twhile (t<tmax)\n");
 	fprintf(out,"\t{\n");
 	
 	/** First step: Calculate propensities **/
-	
-//	fprintf(out,"\t\tdouble a_sum;\n");
-	fprintf(out,"\t\tfor (i=0;i<changed_list_size;i++)\n");
-	fprintf(out,"\t\t{\n");
-
-	/* Unflag */
-//	fprintf(out,"\t\t\tchanged[changed_list[i]]=0;\n");
-
-	fprintf(out,"\t\t\tswitch (changed_list[i])\n");
-	fprintf(out,"\t\t\t{\n");
-	
-	for (i=0;i<sc->num_reactions;i++)
-	{
-		struct reaction *r = &sc->reactions[i];
-
-		fprintf(out,"\t\t\t\tcase\t%d:\n",i);
-		fprintf(out,"\t\t\t\t\t{\n");
-		fprintf(out,"\t\t\t\t\t\tdouble h_c = 1.0;\n");
-
-		/* Calculate h_c */
-		for (unsigned j=0;j<r->num_reactants;j++)
-		{
-			struct reference *ref = &r->reactants[j];
-			int int_val = ref->stoich_value;
-
-			switch (int_val)
-			{
-				case	0:
-						fprintf(out,"\t\t\t\t\t\th_c = 0;\n");
-						break;
-
-				case	1:
-						fprintf(out,"\t\t\t\t\t\th_c *= %s;\n",ref->value->name);
-						break;
-
-				case	2:
-						fprintf(out,"\t\t\t\t\t\th_c *= %s * (%s - 1) / 2;\n",ref->value->name,ref->value->name);
-						break;
-
-				default:
-						fprintf(out,"\t\t\t\t\t\th_c *= binomial(%s,%s);\n",ref->value->name,SBML_formulaToString(ref->stoich));
-						break;
-			}
-		}
-
-		fprintf(out,"\t\t\t\t\t\ta[%d]=h_c*%s;\n",i,SBML_formulaToString(r->formula));
-		
-		fprintf(out,"\t\t\t\t\t}\n");
-		fprintf(out,"\t\t\t\t\tbreak;\n");
-	}
-
-	fprintf(out,"\t\t\t}\n");
-	fprintf(out,"\t\t}\n");
-
 #ifdef USE_CUMSUM
 	/** Second step: Calculate a_cum */
 	fprintf(out,"\t\tacum[0] = a[0];\n");
@@ -1413,17 +1399,14 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			}
 		}
 
-		fprintf(out,"\t\t\t\tchanged_list_size=%d;\n",changed_list_size);
 		for (unsigned int j = 0; j<changed_list_size;j++)
 		{
-			fprintf(out,"\t\t\t\tchanged_list[%d]=%d;\n",j,changed_list[j]);
+			simulation_write_propensity_calculation(out,sc,changed_list[j]);
 			changed[changed_list[j]] = 0;
 		}
 		fprintf(out,"\t\t\t\tbreak;\n");
 		fprintf(out,"\t\t\t}\n");
 	}
-	
-	fprintf(out,"\t\tdefault: changed_list_size = 0; break;\n");
 	
 	fprintf(out,"\t\t}\n");
 
