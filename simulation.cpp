@@ -1126,8 +1126,11 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
 
 /**********************************************************
  Writes out the code for the propensity calculation.
+ 
+ Parameter offset_idx is the offset of the real reactions
+ within the a (propensity) array.
 ***********************************************************/
-static void simulation_write_propensity_calculation(FILE *out, struct simulation_context *sc, int i)
+static void simulation_write_propensity_calculation(FILE *out, struct simulation_context *sc, int i, int offset_idx)
 {
 	struct reaction *r = &sc->reactions[i];
 
@@ -1160,7 +1163,7 @@ static void simulation_write_propensity_calculation(FILE *out, struct simulation
 		}
 	}
 
-	fprintf(out,"\t\ta[%d]=h_c*%s;\n",i,SBML_formulaToString(r->formula));
+	fprintf(out,"\t\ta[%d]=h_c*%s;\n",i + offset_idx, SBML_formulaToString(r->formula));
 	fprintf(out,"\t}\n");
 
 }
@@ -1260,6 +1263,10 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		return;
 	}
 
+#define child1(i) (2*(i)+1)
+#define child2(i) (2*(i)+2)
+#define parent(i) (((i)-1)/2)
+
 	memset(changed,0,sizeof(changed));
 
 	/* Build the source code */
@@ -1275,14 +1282,24 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\tdouble t=0;\n");
 	fprintf(out,"\tdouble tdelta = tmax / steps;\n");
 	fprintf(out,"\tdouble tcb = 0;\n");
-//	fprintf(out,"\tint changed_list[%d];\n",sc->num_reactions);
-//	fprintf(out,"\tint changed_list_size=0;\n");
+
 #ifdef USE_CUMSUM
 	fprintf(out,"\tdouble acum[%d];\n",sc->num_reactions);
 #endif
-//	fprintf(out,"\tdouble h[%d];\n",sc->num_reactions);
-//	fprintf(out,"\tdouble c[%d];\n",sc->num_reactions);
+
+#if 1
 	fprintf(out,"\tdouble a[%d];\n",sc->num_reactions);
+	int start_idx = 0;
+#else
+	int leafs = 1<<(int)ceil(log(sc->num_reactions)/log(2));
+	int start_idx = leafs - 1;
+	fprintf(out,"\tdouble a[%d];\n",leafs+leafs-1);
+	
+	fprintf(out,"\tfor (i=0;i<%d;i++)\n",leafs+leafs-1);
+	fprintf(out,"\t{\n");
+	fprintf(out,"\t\ta[i]=0;\n");
+	fprintf(out,"\t}\n");
+#endif
 	
 	fprintf(out,"\tint molecules[%d];\n",sc->global_env.num_values);
 	
@@ -1303,20 +1320,38 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	
 	/** Calculate initial propensities **/
 	for (i=0;i<sc->num_reactions;i++)
-		simulation_write_propensity_calculation(out,sc,i);
-	
+		simulation_write_propensity_calculation(out,sc,i,start_idx);
+#if 1
+#else
+	/** Build interval data structure */
+	for (int l=leafs-2;l>=0;l--)
+	{
+		fprintf(out,"\t\ta[%d]=a[%d]+a[%d];\n",l,child1(l),child2(l));
+	}
+#endif
+
 	fprintf(out,"\n\twhile (t<tmax)\n");
 	fprintf(out,"\t{\n");
 	
 	/** First step: Calculate propensities **/
 #ifdef USE_CUMSUM
 	/** Second step: Calculate a_cum */
+#if 1
 	fprintf(out,"\t\tacum[0] = a[0];\n");
 	fprintf(out,"\t\tfor (i=1;i<%d;i++)\n",sc->num_reactions);
 	fprintf(out,"\t\t{\n");
 	fprintf(out,"\t\t\tacum[i] = acum[i-1] + a[i];\n");
 	fprintf(out,"\t\t}\n");
 	fprintf(out,"\t\tdouble a_all = acum[%d];\n",sc->num_reactions-1);
+#else
+	fprintf(out,"\t\tacum[0] = a[%d];\n",leafs-1);
+	fprintf(out,"\t\tfor (i=1;i<%d;i++)\n",sc->num_reactions);
+	fprintf(out,"\t\t{\n");
+	fprintf(out,"\t\t\tacum[i] = acum[i-1] + a[i + %d];\n",leafs-1);
+	fprintf(out,"\t\t}\n");
+	fprintf(out,"\t\tdouble a_all = acum[%d];\n",sc->num_reactions-1);
+#endif
+
 #else
 	/** Second step: Calculate a_all **/
 	fprintf(out,"\t\tdouble a_all = 0");
@@ -1399,11 +1434,35 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			}
 		}
 
+#if 1
+#else
+		int changed_array[leafs-1];
+		memset(changed_array,0,sizeof(changed_array));
+#endif
 		for (unsigned int j = 0; j<changed_list_size;j++)
 		{
-			simulation_write_propensity_calculation(out,sc,changed_list[j]);
+			simulation_write_propensity_calculation(out,sc,changed_list[j], start_idx);
+#if 1
+#else
+			int n = changed_list[j] + leafs - 1;
+			
+			while ((n = parent(n)))
+				changed_array[n] = 1;
+			changed_array[0] = 1;
+#endif
 			changed[changed_list[j]] = 0;
 		}
+
+#if 1
+#else
+		for (int l=leafs-2;l>=0;l--)
+		{
+			if (changed_array[l])
+			{
+				fprintf(out,"\t\ta[%d] = a[%d] + a[%d];\n",l,child1(l),child2(l));
+			}
+		}
+#endif
 		fprintf(out,"\t\t\t\tbreak;\n");
 		fprintf(out,"\t\t\t}\n");
 	}
@@ -1411,7 +1470,6 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\t}\n");
 
 	fprintf(out,"\t\tt += tau;\n");
-	
 	fprintf(out,"\t\ttcb += tau;\n");
 	fprintf(out,"\t\tif (tcb > tdelta)\n");
 	fprintf(out,"\t\t{\n");
