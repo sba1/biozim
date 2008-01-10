@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level2/version3" level="2" version="3">
+ <model name="zak">
+  <listOfCompartments>
+   <compartment name="Cell" volume="1" />
+  </listOfCompartments>
+  <listOfSpecies>
+    <!-- Class 1 operons -->
+    <species name = "flhDC_d" boundaryCondition = "false" initialAmount = "0" compartment = "uVol" />
+
+    <!-- Class 2 operons (promotor) -->
+    <species name = "fliLMNOPQR_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliE_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliFGHIJK_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgBCDEFGHIJ_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgAMN_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flhBAE_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliAZY_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+
+    <species name = "fliLMNOPQR_d.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliE_d.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliFGHIJK_d.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgBCDEFGHIJ_d.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgAMN_d.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flhBAE_d.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliAZY_d.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+
+    <species name = "fliLMNOPQR_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliE_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliFGHIJK_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgBCDEFGHIJ_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgAMN_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flhBAE_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliAZY_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+
+    <species name = "fliLMNOPQR_d.FliA.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliE_d.FliA.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliFGHIJK_d.FliA.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgBCDEFGHIJ_d.FliA.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgAMN_d.FliA.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flhBAE_d.FliA.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliAZY_d.FliA.FlhDC" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+
+    <!-- Class 2 operons (mRNA) -->
+    <species name = "fliLMNOPQR_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliE_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliFGHIJK_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgBCDEFGHIJ_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgAMN_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flhBAE_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliAZY_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+
+    <!-- Class 3 operons (promotor) -->
+    <species name = "flgKL_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliDST_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliC_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgMN_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "meche_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "mocha_d" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+
+    <species name = "flgKL_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliDST_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliC_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgMN_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "meche_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "mocha_d.FliA" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+
+    <!-- Class 3 operons (mRNA) -->
+    <species name = "flgKL_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliDST_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "fliC_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "flgMN_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "meche_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "mocha_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+
+    <!-- Protein -->    
+    <species name = "FlgM_p" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "FliA_p" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "FlhA_p" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "FlhB_p" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "FliO_p" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "FliQ_p" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "FliR_p" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+
+    <species name = "FliA.FlgM_p" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    <species name = "SecretionComplex" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+    
+    </species>
+    
+    <listOfParameters>
+    </listOfParameters>
+
+
+
+    <species name = "fliAZY_m" boundaryCondition = "false" initialAmount = "46" compartment = "uVol" />
+
+
+    <listofreactions>
+    
+     <reaction name = "FliA Translation" reversible = "false">
+      <listOfReactants>
+       <specieReference specie = "fliAZY_m" stoichiometry = "1"/>
+       </listOfReactants>
+       <listOfProducts>
+        <specieReference specie = "FliA_p" stoichiometry = "1"/>
+       </listOfProducts>
+       
+       <kineticLaw formula = "kfliAZY_m_FliA * fliAZY_m">
+        <listOfParameters>
+         <parameter name = "kfliAZY_m_FliA" value = "3.8"/>
+        </listOfParameters>
+       </kineticLaw>
+      </reaction>
+
+     <reaction name = "FliA Degradation" reversible = "false">
+      <listOfReactants>
+       <specieReference specie = "FliA_p" stoichiometry = "1"/>
+       </listOfReactants>
+       <kineticLaw formula = "kFliA_deg * FliA_p">
+        <listOfParameters>
+         <parameter name = "kFliA_deg" value = "3.8"/>
+        </listOfParameters>
+       </kineticLaw>
+      </reaction>
+
+     <reaction name = "FliA Degradation" reversible = "false">
+      <listOfReactants>
+       <specieReference specie = "FlhA_p" stoichiometry = "1"/>
+       <specieReference specie = "FlhB_p" stoichiometry = "1"/>
+       <specieReference specie = "FliO_p" stoichiometry = "1"/>
+       <specieReference specie = "FliQ_p" stoichiometry = "1"/>
+       <specieReference specie = "FliR_p" stoichiometry = "1"/>
+       </listOfReactants>
+       
+       <listOfProducts>
+        <specieReference specie = "SecretionComplex" stoichiometry = "1"/>
+       </listOfProducts>
+       
+       <kineticLaw formula = "kSecretionComplex*FlhA_p*FlhB_p*FliO_p*FliQ_p*FliR_p">
+        <listOfParameters>
+         <parameter name = "kSecretionComplex" value = "3.8"/>
+        </listOfParameters>
+       </kineticLaw>
+      </reaction>
+
+
+    </listofreactions>
+   
+  </listOfSpecies>
+ </model>
+</sbml>
