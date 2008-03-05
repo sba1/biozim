@@ -12,6 +12,7 @@ static int force_interpreted;
 static int stiff;
 static int stochastic;
 static double maxtime;
+static double error;
 
 int verbose; /* used by other modules */
 
@@ -25,10 +26,12 @@ static void usage(char *name)
 			"Loads the given SBML-File and performs a simulation run.\n"
 			"Specify '-' to read from stdin.\n"
 			"\t-h, --help               show this help and quit.\n"
-			"\t    --verbose            verbose output.\n"
+			"\t    --error              speciifies the error (absolute and relative) given in double.\n"
 			"\t    --force-interpreted  forces the interpreted calculation of the rhs.\n"
+			"\t    --maxtime            specifies the end time (defaults to 1).\n"
 			"\t    --stiff              use solver for stiff ODEs.\n"
-			"\t    --maxtime            specifies the end time (defaults to 1).\n",
+			"\t    --stochastic         apply stochastic simulation.\n"
+			"\t    --verbose            verbose output.\n",
 			name);
 
 	exit(1);
@@ -42,6 +45,9 @@ static void parse_args(int argc, char *argv[])
 {
 	int i;
 	int filename_given = 0;
+
+	maxtime = 1.0;
+	error = 1e-10;
 
 	for (i=1;i<argc;i++)
 	{
@@ -79,8 +85,26 @@ static void parse_args(int argc, char *argv[])
 				}
 			}
 			maxtime = strtod(nr_arg, NULL);
-			printf("%g\n",maxtime);
+		} else if (!strcmp(argv[i],"--error"))
+		{
+			char *nr_arg;
+			
+			if (argv[i][9]=='=')
+				nr_arg = &argv[i][10];
+			else
+			{
+				nr_arg = argv[i+1];
+				i++;
+				
+				if (i>=argc)
+				{
+					fprintf(stderr,"The --maxtime option needs an argument.\n");
+					exit(-1);
+				}
+			}
+			error = strtod(nr_arg, NULL);
 		}
+				
 		else
 		{
 			filename_given = 1;
@@ -141,8 +165,8 @@ int main(int argc, char **argv)
 	
 	integration_settings_init(&settings);
 	settings.sample_func = sample;
-	settings.absolute_error = 1e-10;
-	settings.relative_error = 1e-10;
+	settings.absolute_error = error;
+	settings.relative_error = error;
 	settings.time = maxtime;
 	settings.steps = 5000;
 	settings.force_interpreted = force_interpreted;
