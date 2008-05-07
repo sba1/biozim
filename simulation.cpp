@@ -2,6 +2,8 @@
 
 #include <dlfcn.h>
 #include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include <sbml/SBMLTypes.h>
 
@@ -17,8 +19,14 @@
 #include "environment.h"
 #include "simulation.h"
 
+/* Define to use the simple method to find the reaction */
+/*#define USE_SIMPLE*/
+
 /* Define to use the cum sum method to find the reaction */
-#define USE_CUMSUM
+/*#define USE_CUMSUM*/
+
+/* Define to use the quick method to find the reaction */
+#define USE_QUICK
 
 /***********************************************/
 
@@ -42,7 +50,7 @@ struct simulation_context
 	/* Valid during stochastic integration. The sampling function. It is called for every sampled time point */
 	int (*sample_func)(double time, int num_values, double *values);
 
-	/* Containes indiced to values which don't have an ODE attached */
+	/* Contains indices to values which don't have an ODE attached */
 	struct value **fixed;
 
 	/* Length of the fixed array */
@@ -376,8 +384,20 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 //		environment_init(&r->env,&sc->global_env);
 
 		Reaction *reaction = model->getReaction(i);
-		const char *reactionName = reaction->getName().c_str();
+		const char *reactionName = reaction->getId().c_str();
+		
 		KineticLaw *kineticLaw = reaction->getKineticLaw();
+		if (!kineticLaw)
+		{
+			fprintf(stderr,"No kinetic law defined for reaction \"%s\".\n",reactionName);
+			goto bailout;
+		}
+		if (!kineticLaw->getMath())
+		{
+			fprintf(stderr,"No math in kinetic law for reaction \"%s\" specified.\n",reactionName);
+			goto bailout;
+		}
+
 		ASTNode *formula = kineticLaw->getMath()->deepCopy();
 
 		fix_power_function(formula);
@@ -825,12 +845,12 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 	{
 		fprintf(out,"int rhs(double t, double *y, double *ydot, void *f_data)\n");
 		fprintf(out,"{\n");
-	
+
 		for (i=0;i<sc->global_env.num_values;i++)
 		{
 			fprintf(out,"\tdouble %s = %g;\n",sc->global_env.values[i]->name,sc->global_env.values[i]->value);
 		}
-	
+
 		for (i=0;i<sc->num_unfixed;i++)
 		{
 			struct value *v = sc->unfixed[i];
@@ -880,8 +900,9 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 		
 		for (i=0;i<sc->global_env.num_values;i++)
 		{
-			if (sc->global_env.values[i]->node)
-				fprintf(out,"\tdouble %s=y[%d];\n",sc->global_env.values[i]->name,i);
+			if (!sc->global_env.values[i]->fixed)
+				if (sc->global_env.values[i]->node)
+					fprintf(out,"\tdouble %s=y[%d];\n",sc->global_env.values[i]->name,i);
 		}
 		fprintf(out,"\n\tint fired = 0;\n\n");
 		
@@ -985,11 +1006,11 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 		{
 			double trigger;
 			struct event *ev;
-	
+
 			ev = sc->events[i];
-			
+
 			trigger = evaluate(&sc->global_env, ev->trigger);
-	
+
 			if (trigger > 0.0)
 			{
 				if (!sc->events_active[i])
@@ -1006,7 +1027,6 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 							value_space[a->value->index] = a->value->value = evaluate(&sc->global_env,a->math);
 							fired = 1;						
 						}
-						
 					}
 				}
 				sc->events_active[i] = 1;
@@ -1099,7 +1119,6 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 		}
 		t += tau;
 
-		printf("%lf",t);
 		for (unsigned int i=0;i<sc->global_env.num_values;i++)
 			printf("\t%d",sc->global_env.values[i]->molecules);
 		printf("\n");
@@ -1130,7 +1149,7 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
  Parameter offset_idx is the offset of the real reactions
  within the a (propensity) array.
 ***********************************************************/
-static void simulation_write_propensity_calculation(FILE *out, struct simulation_context *sc, int i, int offset_idx)
+static void simulation_write_propensity_calculation(FILE *out, struct simulation_context *sc, int i, int offset_idx, int delta)
 {
 	struct reaction *r = &sc->reactions[i];
 
@@ -1163,7 +1182,16 @@ static void simulation_write_propensity_calculation(FILE *out, struct simulation
 		}
 	}
 
+#ifdef USE_QUICK
+	if (delta)
+		fprintf(out,"\t\tdouble a_old = a[%d];\n",i + offset_idx);
+#endif
 	fprintf(out,"\t\ta[%d]=h_c*%s;\n",i + offset_idx, SBML_formulaToString(r->formula));
+
+#ifdef USE_QUICK
+	if (delta)
+		fprintf(out,"\t\ta_all_quick += a[%d] - a_old;\n",i + offset_idx);
+#endif
 	fprintf(out,"\t}\n");
 
 }
@@ -1275,6 +1303,10 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"#include <inttypes.h>\n");
 	fprintf(out,"#include <math.h>\n\n");
 
+	fprintf(out,"#define child1(i) (2*(i)+1)\n");
+	fprintf(out,"#define child2(i) (2*(i)+2)\n");
+	fprintf(out,"#define parent(i) (((i)-1)/2)\n\n");
+
 	fprintf(out,"double gillespie(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata)\n");
 	fprintf(out,"{\n");
 
@@ -1282,12 +1314,12 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\tdouble t=0;\n");
 	fprintf(out,"\tdouble tdelta = tmax / steps;\n");
 	fprintf(out,"\tdouble tcb = 0;\n");
-
+	fprintf(out,"\tsrandom(10);\n");
 #ifdef USE_CUMSUM
 	fprintf(out,"\tdouble acum[%d];\n",sc->num_reactions);
 #endif
 
-#if 1
+#if (defined(USE_SIMPLE) || defined(USE_CUMSUM)) 
 	fprintf(out,"\tdouble a[%d];\n",sc->num_reactions);
 	int start_idx = 0;
 #else
@@ -1320,39 +1352,37 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	
 	/** Calculate initial propensities **/
 	for (i=0;i<sc->num_reactions;i++)
-		simulation_write_propensity_calculation(out,sc,i,start_idx);
-#if 1
-#else
+		simulation_write_propensity_calculation(out,sc,i,start_idx,0);
+
+#ifdef USE_QUICK
 	/** Build interval data structure */
 	for (int l=leafs-2;l>=0;l--)
 	{
 		fprintf(out,"\t\ta[%d]=a[%d]+a[%d];\n",l,child1(l),child2(l));
 	}
+
+	/** Calculate a_all for quick **/
+	fprintf(out,"\t\tdouble a_all_quick = 0");
+	for (i=0;i<sc->num_reactions;i++)
+		fprintf(out," + a[%d]",i + leafs - 1);
+	fprintf(out,";\n");
+
 #endif
 
 	fprintf(out,"\n\twhile (t<tmax)\n");
 	fprintf(out,"\t{\n");
 	
-	/** First step: Calculate propensities **/
 #ifdef USE_CUMSUM
 	/** Second step: Calculate a_cum */
-#if 1
 	fprintf(out,"\t\tacum[0] = a[0];\n");
 	fprintf(out,"\t\tfor (i=1;i<%d;i++)\n",sc->num_reactions);
 	fprintf(out,"\t\t{\n");
 	fprintf(out,"\t\t\tacum[i] = acum[i-1] + a[i];\n");
 	fprintf(out,"\t\t}\n");
 	fprintf(out,"\t\tdouble a_all = acum[%d];\n",sc->num_reactions-1);
-#else
-	fprintf(out,"\t\tacum[0] = a[%d];\n",leafs-1);
-	fprintf(out,"\t\tfor (i=1;i<%d;i++)\n",sc->num_reactions);
-	fprintf(out,"\t\t{\n");
-	fprintf(out,"\t\t\tacum[i] = acum[i-1] + a[i + %d];\n",leafs-1);
-	fprintf(out,"\t\t}\n");
-	fprintf(out,"\t\tdouble a_all = acum[%d];\n",sc->num_reactions-1);
 #endif
 
-#else
+#ifdef USE_SIMPLE
 	/** Second step: Calculate a_all **/
 	fprintf(out,"\t\tdouble a_all = 0");
 	for (i=0;i<sc->num_reactions;i++)
@@ -1363,10 +1393,25 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	/** Third step: Draw random numbers **/
 	fprintf(out,"\t\tdouble r1 = random()/(double)RAND_MAX;\n");
 	fprintf(out,"\t\tdouble r2 = random()/(double)RAND_MAX;\n");
+#ifdef USE_QUICK
+	fprintf(out,"\t\tdouble ar = r2*a_all_quick;\n");
+	fprintf(out,"\t\tdouble tau = (1.0/a_all_quick) * log(1.0/r1);\n");
+#else
 	fprintf(out,"\t\tdouble ar = r2*a_all;\n");
 	fprintf(out,"\t\tdouble tau = (1.0/a_all) * log(1.0/r1);\n");
+#endif
 
 	/** Fourth step: Find the fired reaction **/
+#ifdef USE_SIMPLE
+	fprintf(out,"\t\tdouble a_sum = 0;\n");
+	fprintf(out,"\t\tfor (i=0;i<%d;i++)\n",sc->num_reactions);
+	fprintf(out,"\t\t{\n");
+	fprintf(out,"\t\t\ta_sum += a[i];\n");
+	fprintf(out,"\t\t\tif (a_sum >= ar)\n");
+	fprintf(out,"\t\t\t\tbreak;\n");
+	fprintf(out,"\t\t}\n");
+#endif
+	
 #ifdef USE_CUMSUM
 	fprintf(out,"\t\tint l = 0;\n");
 	fprintf(out,"\t\tint r = %d;\n",sc->num_reactions-1);
@@ -1377,17 +1422,22 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\t\t\telse l=m+1;\n");
 	fprintf(out,"\t\t}\n");
 	fprintf(out,"\t\ti=l;\n");
-#else
-	fprintf(out,"\t\tdouble a_sum = 0;\n");
-	fprintf(out,"\t\tfor (i=0;i<%d;i++)\n",sc->num_reactions);
-	fprintf(out,"\t\t{\n");
-	fprintf(out,"\t\t\ta_sum += a[i];\n");
-	fprintf(out,"\t\t\tif (a_sum >= ar)\n");
-	fprintf(out,"\t\t\t\tbreak;\n");
-	fprintf(out,"\t\t}\n");
 #endif
 
-	//	fprintf(out,"\t\tfprintf(stderr,\"a_all=%%lf a_all_full=%%lf a_sum=%%lf r1=%%lf r2=%%lf reaction=%%d\\n\",a_all,a_all,a_sum,r1,r2,i);\n");
+#ifdef USE_QUICK
+	fprintf(out,"\t\tdouble interval_l = 0;\n");
+	fprintf(out,"\t\tint node = 0;\n");
+	fprintf(out,"\t\twhile (node < %d)\n",leafs-1);
+	fprintf(out,"\t\t{\n");
+	fprintf(out,"\t\t\tdouble split = interval_l + a[child1(node)];\n");
+	fprintf(out,"\t\t\tif (ar < split) node = child1(node);\n");
+	fprintf(out,"\t\t\telse { node = child2(node); interval_l = split;}\n");
+	fprintf(out,"\t\t}\n");
+	fprintf(out,"\t\tnode -= %d;\n",leafs-1);
+	fprintf(out,"\t\ti = node;\n");
+//	fprintf(out,"\t\tif (i!= node) printf(\"%%d %%d\\n\",i,node);\n");
+#endif
+
 
 	/** Fivth step: Fire the reaction */
 	fprintf(out,"\t\tswitch(i)\n");
@@ -1434,16 +1484,15 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			}
 		}
 
-#if 1
-#else
+#ifdef USE_QUICK
 		int changed_array[leafs-1];
 		memset(changed_array,0,sizeof(changed_array));
 #endif
 		for (unsigned int j = 0; j<changed_list_size;j++)
 		{
-			simulation_write_propensity_calculation(out,sc,changed_list[j], start_idx);
-#if 1
-#else
+			simulation_write_propensity_calculation(out,sc,changed_list[j], start_idx,1);
+
+			#ifdef USE_QUICK
 			int n = changed_list[j] + leafs - 1;
 			
 			while ((n = parent(n)))
@@ -1453,8 +1502,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			changed[changed_list[j]] = 0;
 		}
 
-#if 1
-#else
+#ifdef USE_QUICK
 		for (int l=leafs-2;l>=0;l--)
 		{
 			if (changed_array[l])
@@ -1463,6 +1511,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			}
 		}
 #endif
+
 		fprintf(out,"\t\t\t\tbreak;\n");
 		fprintf(out,"\t\t\t}\n");
 	}
@@ -1804,6 +1853,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 			for (j=0;j<num_unfixed;j++)
 				NV_Ith_S(initial,j) = value_space[unfixed[j]->index];
 
+			
 			/* Reinitialize the problem */
 			flag = CVodeReInit(cvode_mem, rhs, tret, initial, CV_SS, settings->relative_error, &abstol);
 			if (flag < 0)
