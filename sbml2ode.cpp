@@ -11,6 +11,7 @@ static const char *model_filename;
 static int force_interpreted;
 static int stiff;
 static int stochastic;
+static int output_time;
 static double maxtime;
 static double error;
 
@@ -29,6 +30,7 @@ static void usage(char *name)
 			"\t    --error              speciifies the error (absolute and relative) given in double.\n"
 			"\t    --force-interpreted  forces the interpreted calculation of the rhs.\n"
 			"\t    --maxtime            specifies the end time (defaults to 1).\n"
+			"\t    --output-time        outputs the current time (stderr).\n"
 			"\t    --stiff              use solver for stiff ODEs.\n"
 			"\t    --stochastic         apply stochastic simulation.\n"
 			"\t    --verbose            verbose output.\n",
@@ -61,6 +63,9 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--force-interpreted"))
 		{
 			force_interpreted = 1;
+		} else if (!strcmp(argv[i],"--output-time"))
+		{
+			output_time = 1;
 		} else if (!strcmp(argv[i],"--stiff"))
 		{
 			stiff = 1;
@@ -126,11 +131,14 @@ static void parse_args(int argc, char *argv[])
 ***********************************************************/
 int sample(double time, int num_values, double *values)
 {
+	if (output_time)
+		fprintf(stderr,"%g\n",time);
+
 	printf("%g",time);
 	
 	for (int i=0;i<num_values;i++)
 	{
-		printf("\t%g",values[i]);
+		printf("\t%.12g",values[i]);
 	}
 	printf("\n");
 
