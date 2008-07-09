@@ -55,10 +55,10 @@ struct simulation_context
 
 	/* Length of the fixed array */
 	unsigned int num_fixed;
-	
+
 	/* All events of this model */
 	struct event **events;
-	
+
 	/* The size of the events array */
 	unsigned int num_events;
 
@@ -67,7 +67,7 @@ struct simulation_context
 
 	/* Number of reactions */
 	unsigned int num_reactions;
-	
+
 	/* The reactions */
 	struct reaction *reactions;
 
@@ -151,7 +151,7 @@ static int environment_add_parameter(struct environment *env, Parameter *p)
 }
 
 /*****************************************************
- Add a new species to the 
+ Add a new species to the
 ******************************************************/
 static struct value *simulation_context_add_species(struct simulation_context *sc, Species *s)
 {
@@ -166,7 +166,7 @@ static struct value *simulation_context_add_species(struct simulation_context *s
 
 	if (!(v = environment_add_value(&sc->global_env, name)))
 		return NULL;
-	
+
 	if (s->isSetInitialAmount())
 	{
 		v->value = s->getInitialAmount();
@@ -215,7 +215,7 @@ static void simulation_context_add_reference(struct simulation_context *sc, Spec
 	if ((v = environment_get_value(&sc->global_env, ref->getSpecies().c_str())))
 	{
 		ASTNode *prev, *minus, *copy, *stoich;
-		
+
 		if (!(prev = v->node))
 		{
 			if (!(prev = new ASTNode(AST_REAL)))
@@ -252,7 +252,7 @@ static void simulation_context_add_reference(struct simulation_context *sc, Spec
 		minus->addChild(component);
 		v->node = minus;
 	}
-	
+
 	return;
 
 	nomem:
@@ -261,7 +261,7 @@ static void simulation_context_add_reference(struct simulation_context *sc, Spec
 }
 
 /*************************************************
- Replaces the POWER with 
+ Replaces the POWER with
 *************************************************/
 static void fix_power_function(ASTNode *node)
 {
@@ -308,7 +308,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	unsigned int numParameters;
 	unsigned int numEvents;
 	unsigned int i,j,k;
-	
+
 	struct simulation_context *sc;
 
 	struct value *value_first;
@@ -385,7 +385,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 		Reaction *reaction = model->getReaction(i);
 		const char *reactionName = reaction->getId().c_str();
-		
+
 		KineticLaw *kineticLaw = reaction->getKineticLaw();
 		if (!kineticLaw)
 		{
@@ -446,7 +446,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 			SpeciesReference *ref = reaction->getReactant(j);
 			simulation_context_add_reference(sc, ref, formula, AST_MINUS);
-			
+
 			if ((ref_v = environment_get_value(&sc->global_env,ref->getSpecies().c_str())))
 			{
 				sc->reactions[i].reactants[j].value = ref_v;
@@ -458,7 +458,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 				sc->reactions[i].reactants[j].stoich_value = get_AST_integer_value(sc->reactions[i].reactants[j].stoich);;
 			}
 		}
-		
+
 		/* Add products (increase the species' concentration */
 		for (j=0;j<numProducts;j++)
 		{
@@ -499,7 +499,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		Event *e = model->getEvent(i);
 	 	unsigned int numEventAssignments = e->getNumEventAssignments();
 	 	struct event *ev;
-	 	
+
 	 	if (!(ev = (struct event*)malloc(sizeof(*ev)+sizeof(struct assignment)*numEventAssignments)))
 	 	{
 			fprintf(stderr,"Could not allocate memory\n");
@@ -515,7 +515,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 		const char *name = ea->getVariable().c_str();
 
 	 		ev->assignments[j].value = environment_get_value(&sc->global_env, name);
-	 			
+
 	 		if (ea->getMath())
 	 			ev->assignments[j].math = ea->getMath()->deepCopy();
 	 	}
@@ -550,7 +550,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		fprintf(stderr,"Could not parse \"%s\"\n",filename);
 		goto bailout;
 	}
-	
+
 	if (!(sc->fixed = (struct value **)malloc(sizeof(sc->fixed[0])*sc->num_fixed)))
 	{
 		fprintf(stderr,"Could not parse \"%s\"\n",filename);
@@ -578,7 +578,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 	delete parser;
 	return sc;
-	
+
 bailout:
 	if (parser) delete parser;
 	return NULL;
@@ -590,12 +590,12 @@ static double evaluate(struct environment *sc, const ASTNode *node)
 
 	switch (node->getType())
 	{
-	
+
 		case	AST_PLUS: return evaluate(sc, node->getLeftChild()) + evaluate(sc, node->getRightChild());
 		case	AST_MINUS:  return evaluate(sc, node->getLeftChild()) - evaluate(sc, node->getRightChild());
 		case	AST_TIMES: return evaluate(sc, node->getLeftChild()) * evaluate(sc, node->getRightChild());
 		case	AST_DIVIDE: return evaluate(sc, node->getLeftChild()) / evaluate(sc, node->getRightChild());
-		case	AST_FUNCTION_POWER: 
+		case	AST_FUNCTION_POWER:
 		case	AST_POWER: return pow(evaluate(sc, node->getLeftChild()),evaluate(sc, node->getRightChild()));
 		case	AST_INTEGER: return node->getInteger();
 		case	AST_REAL: return node->getReal();
@@ -606,90 +606,90 @@ static double evaluate(struct environment *sc, const ASTNode *node)
 //		case	AST_CONSTANT_E: break;
 //		case	AST_CONSTANT_FALSE: break;
 //		case	AST_CONSTANT_PI: break;
-//		case		AST_CONSTANT_TRUE: 	
+//		case		AST_CONSTANT_TRUE:
 //				break;
 /*
-		case		AST_LAMBDA: 	
+		case		AST_LAMBDA:
 				break;
 		case		AST_FUNCTION:
 				break;
-		case		AST_FUNCTION_ABS: 	
+		case		AST_FUNCTION_ABS:
 				break;
-		case		AST_FUNCTION_ARCCOS: 	
+		case		AST_FUNCTION_ARCCOS:
 				break;
-		case		AST_FUNCTION_ARCCOSH: 	
+		case		AST_FUNCTION_ARCCOSH:
 				break;
-		case		AST_FUNCTION_ARCCOT:	
+		case		AST_FUNCTION_ARCCOT:
 				break;
-		case		AST_FUNCTION_ARCCOTH: 	
+		case		AST_FUNCTION_ARCCOTH:
 				break;
-		case		AST_FUNCTION_ARCCSC:	
+		case		AST_FUNCTION_ARCCSC:
 				break;
-		case		AST_FUNCTION_ARCCSCH: 	
+		case		AST_FUNCTION_ARCCSCH:
 				break;
-		case		AST_FUNCTION_ARCSEC:	
+		case		AST_FUNCTION_ARCSEC:
 				break;
-		case		AST_FUNCTION_ARCSECH: 	
+		case		AST_FUNCTION_ARCSECH:
 				break;
-		case		AST_FUNCTION_ARCSIN:	
+		case		AST_FUNCTION_ARCSIN:
 				break;
-		case		AST_FUNCTION_ARCSINH: 	
+		case		AST_FUNCTION_ARCSINH:
 				break;
-		case		AST_FUNCTION_ARCTAN:	
+		case		AST_FUNCTION_ARCTAN:
 				break;
-		case		AST_FUNCTION_ARCTANH:	
+		case		AST_FUNCTION_ARCTANH:
 				break;
-		case		AST_FUNCTION_CEILING: 	
+		case		AST_FUNCTION_CEILING:
 				break;
-		case		AST_FUNCTION_COS:	
+		case		AST_FUNCTION_COS:
 				break;
-		case		AST_FUNCTION_COSH: 	
+		case		AST_FUNCTION_COSH:
 				break;
-		case		AST_FUNCTION_COT:	
+		case		AST_FUNCTION_COT:
 				break;
-		case		AST_FUNCTION_COTH: 	
+		case		AST_FUNCTION_COTH:
 				break;
-		case		AST_FUNCTION_CSC:	
+		case		AST_FUNCTION_CSC:
 				break;
 		case		AST_FUNCTION_CSCH:
 				break;
-		case		AST_FUNCTION_DELAY: 	
+		case		AST_FUNCTION_DELAY:
 				break;
 		case		AST_FUNCTION_EXP:
 				break;
-		case		AST_FUNCTION_FACTORIAL: 	
+		case		AST_FUNCTION_FACTORIAL:
 				break;
-		case		AST_FUNCTION_FLOOR: 	
+		case		AST_FUNCTION_FLOOR:
 				break;
-		case AST_FUNCTION_LN:	
+		case AST_FUNCTION_LN:
 				break;
 		case		AST_FUNCTION_LOG:
 				break;
-		case		AST_FUNCTION_PIECEWISE: 	
+		case		AST_FUNCTION_PIECEWISE:
 				break;
 		case		AST_FUNCTION_POWER:
 				break;
-		case		AST_FUNCTION_ROOT: 	
+		case		AST_FUNCTION_ROOT:
 				break;
-		case		AST_FUNCTION_SEC:	
+		case		AST_FUNCTION_SEC:
 				break;
-		case		AST_FUNCTION_SECH: 	
+		case		AST_FUNCTION_SECH:
 				break;
-		case		AST_FUNCTION_SIN:	
+		case		AST_FUNCTION_SIN:
 				break;
 		case		AST_FUNCTION_SINH:
 				break;
-		case		AST_FUNCTION_TAN:	
+		case		AST_FUNCTION_TAN:
 				break;
-		case		AST_FUNCTION_TANH: 	
+		case		AST_FUNCTION_TANH:
 				break;
 		case		AST_LOGICAL_AND:
 				break;
-		case	AST_LOGICAL_NOT: 	
+		case	AST_LOGICAL_NOT:
 				break;
-		case	AST_LOGICAL_OR: 	
+		case	AST_LOGICAL_OR:
 				break;
-		case	AST_LOGICAL_XOR: 	
+		case	AST_LOGICAL_XOR:
 				break;*/
 		case	AST_RELATIONAL_EQ:  return evaluate(sc, node->getLeftChild()) == evaluate(sc, node->getRightChild());
 		case	AST_RELATIONAL_GEQ: return evaluate(sc, node->getLeftChild()) >= evaluate(sc, node->getRightChild());
@@ -705,7 +705,7 @@ static double evaluate(struct environment *sc, const ASTNode *node)
 				printf("ASTNode of type %d not handled!\n",node->getType());
 				break;
 	}
-	
+
 	return 0;
 }
 
@@ -753,7 +753,7 @@ static int dlf(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 	sc->dlrhs(t,sc->dly,sc->dlydot,f_data);
 
 	for (i=0;i<sc->num_unfixed;i++)
-		NV_Ith_S(ydot,i) = sc->dlydot[i]; 
+		NV_Ith_S(ydot,i) = sc->dlydot[i];
 
 	return 0;
 }
@@ -782,7 +782,7 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 			NV_Ith_S(ydot,i) = evaluate(&sc->global_env, v->node);
 		else
 			NV_Ith_S(ydot,i) = 0;
-/*		
+/*
 		printf("d%s=%g ",v->name,NV_Ith_S(ydot,i));
 		printf("%s=%g ",v->name,v->value);
 		if (v->node) print(sc,v->node);
@@ -803,14 +803,14 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 /**********************************************************
  Returns an NULL-terminated array with names of the
  variables. Memory is freed upon simulation_context_free()
- call. 
+ call.
 ***********************************************************/
 char **simulation_get_value_names(struct simulation_context *sc)
 {
 	unsigned int i;
 
 	if (sc->names) return sc->names;
-	
+
 	if (!(sc->names = (char**)malloc(sizeof(char*)*(sc->global_env.num_values+1))))
 		return NULL;
 
@@ -897,7 +897,7 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 		/**** check_trigger() ****/
 		/* The arrays span the whole value space */
 		fprintf(out,"int check_trigger(double t, double *y, int *events_active)\n{\n");
-		
+
 		for (i=0;i<sc->global_env.num_values;i++)
 		{
 			if (!sc->global_env.values[i]->fixed)
@@ -905,7 +905,7 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 					fprintf(out,"\tdouble %s=y[%d];\n",sc->global_env.values[i]->name,i);
 		}
 		fprintf(out,"\n\tint fired = 0;\n\n");
-		
+
 		for (i=0;i<sc->num_events;i++)
 		{
 			struct event *ev;
@@ -930,7 +930,7 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 		}
 		fprintf(out,"\treturn fired;\n}\n");
 	}
-	
+
 	/* Build the program */
 	fclose(out);
 	if (!(command = (char*)malloc(500)))
@@ -971,7 +971,7 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 }
 
 /**********************************************************
- Frees all resources allocated 
+ Frees all resources allocated
 ***********************************************************/
 static void simulation_context_finish_jit(struct simulation_context *sc)
 {
@@ -989,7 +989,7 @@ static void simulation_context_finish_jit(struct simulation_context *sc)
  Perform the event handling. This encompasses the
  evaluation of its trigger. An event is fired, iff
  it transists from false to true.
- 
+
  This function returns 0, if no event has occured.
 ***********************************************************/
 static int simulation_context_check_trigger(struct simulation_context *sc, double t, double *value_space)
@@ -1001,7 +1001,7 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 	{
 		unsigned int i,j;
 		unsigned int fired = 0;
-		
+
 		for (i=0;i<sc->num_events;i++)
 		{
 			double trigger;
@@ -1018,14 +1018,14 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 					/* Event was active before, fire the event by executing its assignments */
 					for (j=0;j<ev->num_assignments;j++)
 					{
-						struct assignment *a = &ev->assignments[j]; 
+						struct assignment *a = &ev->assignments[j];
 						if (a)
 						{
 							if (verbose)
 								fprintf(stderr,"Setting %s from %lf to %lf\n",a->value->name,a->value->value,evaluate(&sc->global_env,a->math));
-	
+
 							value_space[a->value->index] = a->value->value = evaluate(&sc->global_env,a->math);
-							fired = 1;						
+							fired = 1;
 						}
 					}
 				}
@@ -1070,7 +1070,7 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 	double tmax = settings->time;
 
 	t = 0;
-	
+
 	while (t < tmax)
 	{
 		double a_all = 0;
@@ -1098,7 +1098,7 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 
 		double r1 = random()/(double)RAND_MAX;
 		double r2 = random()/(double)RAND_MAX;
-		
+
 		double tau = (1.0/a_all) * log(1.0/r1);
 
 		for (unsigned int i=0;i<sc->num_reactions;i++)
@@ -1109,11 +1109,11 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 			if (a_sum >= r2*a_all)
 			{
 				for (unsigned j=0;j<r->num_reactants;j++)
-					r->reactants[j].value->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich); 
-				
+					r->reactants[j].value->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich);
+
 				for (unsigned j=0;j<r->num_products;j++)
 					r->products[j].value->molecules += evaluate(&sc->global_env,r->products[j].stoich);
-				
+
 				break;
 			}
 		}
@@ -1145,7 +1145,7 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
 
 /**********************************************************
  Writes out the code for the propensity calculation.
- 
+
  Parameter offset_idx is the offset of the real reactions
  within the a (propensity) array.
 ***********************************************************/
@@ -1209,9 +1209,9 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	/* Index indicates whether reaction has been changed */
 	int changed[sc->num_reactions];
 
-	/* Contains indices of changed reactions */ 
+	/* Contains indices of changed reactions */
 	unsigned int changed_list[sc->num_reactions];
-	
+
 	/* Number of entries in changed_list */
 	unsigned int changed_list_size = 0;
 
@@ -1253,7 +1253,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	int *species_participating_in_which_reactions[sc->global_env.num_values];
 
 	species_participating_in_which_reactions_flat = (int*)malloc((stoich_mat_entries + sc->global_env.num_values)*sizeof(int));
-	
+
 	pos = 0; /* current position in the flat array */
 
 	for (j=0;j<sc->global_env.num_values;j++)
@@ -1262,7 +1262,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		int *this_species_participating_in_which_reactions;
 
 		species_participating_in_which_reactions[j] = &species_participating_in_which_reactions_flat[pos];
-		
+
 		this_species_participating_in_which_reactions = species_participating_in_which_reactions[j];
 		k = 0;
 
@@ -1271,7 +1271,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			if (stoich_mat[i*stoich_mat_cols + j]<0)
 				this_species_participating_in_which_reactions[k++] = i;
 		}
-		
+
 		this_species_participating_in_which_reactions[k] = -1;
 		pos += k + 1;
 	}
@@ -1281,7 +1281,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 	/**************************************************************/
 	/* Source code generation */
-	
+
 	const char *filename = "test2.c";
 	FILE *out;
 
@@ -1319,22 +1319,22 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\tdouble acum[%d];\n",sc->num_reactions);
 #endif
 
-#if (defined(USE_SIMPLE) || defined(USE_CUMSUM)) 
+#if (defined(USE_SIMPLE) || defined(USE_CUMSUM))
 	fprintf(out,"\tdouble a[%d];\n",sc->num_reactions);
 	int start_idx = 0;
 #else
 	int leafs = 1<<(int)ceil(log(sc->num_reactions)/log(2));
 	int start_idx = leafs - 1;
 	fprintf(out,"\tdouble a[%d];\n",leafs+leafs-1);
-	
+
 	fprintf(out,"\tfor (i=0;i<%d;i++)\n",leafs+leafs-1);
 	fprintf(out,"\t{\n");
 	fprintf(out,"\t\ta[i]=0;\n");
 	fprintf(out,"\t}\n");
 #endif
-	
+
 	fprintf(out,"\tint molecules[%d];\n",sc->global_env.num_values);
-	
+
 	for (i=0;i<sc->global_env.num_values;i++)
 	{
 		if (!sc->global_env.values[i]->is_species)
@@ -1349,7 +1349,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			fprintf(out,"\t%s=%d;\n",sc->global_env.values[i]->name,sc->global_env.values[i]->molecules);
 		}
 	}
-	
+
 	/** Calculate initial propensities **/
 	for (i=0;i<sc->num_reactions;i++)
 		simulation_write_propensity_calculation(out,sc,i,start_idx,0);
@@ -1371,7 +1371,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 	fprintf(out,"\n\twhile (t<tmax)\n");
 	fprintf(out,"\t{\n");
-	
+
 #ifdef USE_CUMSUM
 	/** Second step: Calculate a_cum */
 	fprintf(out,"\t\tacum[0] = a[0];\n");
@@ -1411,7 +1411,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\t\t\tbreak;\n");
 	fprintf(out,"\t\t}\n");
 #endif
-	
+
 #ifdef USE_CUMSUM
 	fprintf(out,"\t\tint l = 0;\n");
 	fprintf(out,"\t\tint r = %d;\n",sc->num_reactions-1);
@@ -1453,7 +1453,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 		for (unsigned int j=0;j<r->num_reactants;j++)
 		{
-			struct value *sp = r->reactants[j].value; 
+			struct value *sp = r->reactants[j].value;
 			fprintf(out,"\t\t\t\t%s -= %s;\n",sp->name,SBML_formulaToString(r->reactants[j].stoich));
 //			fprintf(out,"\t\t\t\tif (%s < 0) %s = 0;\n",sp->name,sp->name);
 
@@ -1463,7 +1463,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 				if (!changed[spr[k]])
 				{
 					changed[spr[k]] = 1;
-					changed_list[changed_list_size++] = spr[k]; 
+					changed_list[changed_list_size++] = spr[k];
 				}
 			}
 		}
@@ -1479,7 +1479,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 				if (!changed[spr[k]])
 				{
 					changed[spr[k]] = 1;
-					changed_list[changed_list_size++] = spr[k]; 
+					changed_list[changed_list_size++] = spr[k];
 				}
 			}
 		}
@@ -1494,7 +1494,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 			#ifdef USE_QUICK
 			int n = changed_list[j] + leafs - 1;
-			
+
 			while ((n = parent(n)))
 				changed_array[n] = 1;
 			changed_array[0] = 1;
@@ -1515,7 +1515,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		fprintf(out,"\t\t\t\tbreak;\n");
 		fprintf(out,"\t\t\t}\n");
 	}
-	
+
 	fprintf(out,"\t\t}\n");
 
 	fprintf(out,"\t\tt += tau;\n");
@@ -1530,9 +1530,9 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"}\n");
 
 	fclose(out);
-	
+
 	/**************************************************************/
-	
+
 	/* Now compile and execute the stuff */
 	char *command;
 	int rc;
@@ -1549,7 +1549,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		if (handle)
 		{
 			double (*gillespie)(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata);
-			
+
 			gillespie = (double (*)(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata))dlsym(handle,"gillespie");
 			if (!(dlerror()))
 			{
@@ -1564,9 +1564,9 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			dlclose(handle);
 		}
 	}
-	
+
 	/**************************************************************/
-	
+
 	/* Initially, we flag all reactions as changed */
 	for (i=0;i<sc->num_reactions;i++)
 		changed_list[i] = i;
@@ -1587,7 +1587,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 //		}
 //		printf("\n");
 
-		
+
 		/* Calculate propensities for all changed-flagged entries */
 		for (i=0;i<changed_list_size;i++)
 		{
@@ -1615,7 +1615,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 							break;
 
 					case	2:
-							h_c *= (double)ref->value->molecules * (double)(ref->value->molecules - 1)/2; 
+							h_c *= (double)ref->value->molecules * (double)(ref->value->molecules - 1)/2;
 							break;
 
 					default:
@@ -1630,10 +1630,10 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 //			double a_old = r->a;
 			r->a = r->h * r->c;
-			
+
 //			fprintf(stderr,"a[%d]=%f\n",changed_list[i],r->a);
 //
-			
+
 //			a_all += r->a - a_old;
 		}
 //		fprintf(stderr,"\n");
@@ -1672,7 +1672,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			struct reaction *r = &sc->reactions[i];
 			for (unsigned int j=0;j<r->num_reactants;j++)
 			{
-				struct value *sp = r->reactants[j].value; 
+				struct value *sp = r->reactants[j].value;
 				sp->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich);
 				sp->value = sp->molecules;
 
@@ -1682,11 +1682,11 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 					if (!changed[spr[k]])
 					{
 						changed[spr[k]] = 1;
-						changed_list[changed_list_size++] = spr[k]; 
+						changed_list[changed_list_size++] = spr[k];
 					}
 				}
 			}
-				
+
 			for (unsigned int j=0;j<r->num_products;j++)
 			{
 				struct value *sp = r->products[j].value;
@@ -1699,7 +1699,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 					if (!changed[spr[k]])
 					{
 						changed[spr[k]] = 1;
-						changed_list[changed_list_size++] = spr[k]; 
+						changed_list[changed_list_size++] = spr[k];
 					}
 				}
 			}
@@ -1727,7 +1727,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		simulation_integrate_stochastic_quick(sc, settings);
 		return;
 	}
-	
+
 	unsigned i,j;
 	double tmax = settings->time;
 	unsigned int steps = settings->steps;
@@ -1762,12 +1762,12 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	realtype abstol = settings->absolute_error;
 	realtype tret;
 	int (*rhs)(realtype, _generic_N_Vector*, _generic_N_Vector*, void*);
-	
+
 	if (settings->stiff)
 		cvode_mem = CVodeCreate(CV_BDF, CV_NEWTON);
 	else
 		cvode_mem = CVodeCreate(CV_ADAMS,CV_FUNCTIONAL);
-	
+
 	if (!cvode_mem)
 	{
 		fprintf(stderr,"CVodeCreate failed!\n");
@@ -1794,7 +1794,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	/* Initialize initial values for ode solver */
 	for (i=0;i<num_unfixed;i++)
 		NV_Ith_S(initial,i) = unfixed[i]->value;
-	
+
 	if (!settings->force_interpreted && simulation_context_prepare_jit(sc))
 	{
 		if (verbose) fprintf(stderr,"Using compiled right-hand side function\n");
@@ -1827,9 +1827,9 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		if (!settings->sample_func(0.0,num_values,value_space))
 			goto out;
 	}
-	
+
 	CVodeSetMaxNumSteps(cvode_mem,1000000);
-	
+
 	for (i=1;i<=steps;i++)
 	{
 		while ((flag = CVode(cvode_mem,tmax*i/steps,yout,&tret,CV_NORMAL))==CV_TOO_MUCH_WORK);
@@ -1853,7 +1853,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 			for (j=0;j<num_unfixed;j++)
 				NV_Ith_S(initial,j) = value_space[unfixed[j]->index];
 
-			
+
 			/* Reinitialize the problem */
 			flag = CVodeReInit(cvode_mem, rhs, tret, initial, CV_SS, settings->relative_error, &abstol);
 			if (flag < 0)
@@ -1869,7 +1869,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 				goto out;
 		}
 	}
-	
+
 out:
 	simulation_context_finish_jit(sc);
 
@@ -1920,7 +1920,7 @@ void simulation_context_free(struct simulation_context *sc)
 
 	if (sc->fixed)
 		free(sc->fixed);
-	
+
 	if (sc->dly)
 		free(sc->dly);
 
@@ -1934,7 +1934,7 @@ void simulation_context_free(struct simulation_context *sc)
 }
 
 /**********************************************************
- Initializes the settings with some default values. 
+ Initializes the settings with some default values.
 ***********************************************************/
 void integration_settings_init(struct integration_settings *settings)
 {

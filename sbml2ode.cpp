@@ -75,14 +75,14 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--maxtime"))
 		{
 			char *nr_arg;
-			
+
 			if (argv[i][9]=='=')
 				nr_arg = &argv[i][10];
 			else
 			{
 				nr_arg = argv[i+1];
 				i++;
-				
+
 				if (i>=argc)
 				{
 					fprintf(stderr,"The --maxtime option needs an argument.\n");
@@ -93,14 +93,14 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--error"))
 		{
 			char *nr_arg;
-			
+
 			if (argv[i][9]=='=')
 				nr_arg = &argv[i][10];
 			else
 			{
 				nr_arg = argv[i+1];
 				i++;
-				
+
 				if (i>=argc)
 				{
 					fprintf(stderr,"The --maxtime option needs an argument.\n");
@@ -109,7 +109,7 @@ static void parse_args(int argc, char *argv[])
 			}
 			error = strtod(nr_arg, NULL);
 		}
-				
+
 		else
 		{
 			filename_given = 1;
@@ -117,12 +117,12 @@ static void parse_args(int argc, char *argv[])
 				model_filename = argv[i];
 		}
 	}
-	
+
 	if (!filename_given)
 	{
 		fprintf(stderr,"No filename has been specifed!\n");
 		usage(argv[0]);
-		exit(-1);		
+		exit(-1);
 	}
 }
 
@@ -135,7 +135,7 @@ int sample(double time, int num_values, double *values)
 		fprintf(stderr,"%g\n",time);
 
 	printf("%g",time);
-	
+
 	for (int i=0;i<num_values;i++)
 	{
 		printf("\t%.12g",values[i]);
@@ -170,7 +170,7 @@ int main(int argc, char **argv)
 		}
 		printf("\n");
 	}
-	
+
 	integration_settings_init(&settings);
 	settings.sample_func = sample;
 	settings.absolute_error = error;
@@ -184,9 +184,9 @@ int main(int argc, char **argv)
 	simulation_integrate(sc,&settings);
 
 	simulation_context_free(sc);
-	
+
 	return EXIT_SUCCESS;
-	
+
 bailout:
 	return EXIT_FAILURE;
 }
