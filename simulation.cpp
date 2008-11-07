@@ -500,6 +500,15 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	unsigned int numEventAssignments = e->getNumEventAssignments();
 	 	struct event *ev;
 
+	 	XMLNode *annotation = e->getAnnotation();
+	 	if (annotation != NULL)
+	 	{
+	 		for (unsigned int i=0;i<annotation->getNumChildren();i++)
+	 		{
+	 			XMLNode child = annotation->getChild(i);
+	 		}
+	 	}
+
 	 	if (!(ev = (struct event*)malloc(sizeof(*ev)+sizeof(struct assignment)*numEventAssignments)))
 	 	{
 			fprintf(stderr,"Could not allocate memory\n");
