@@ -140,6 +140,20 @@ int sample(double time, int num_values, double *values)
 	{
 		printf("\t%.12g",values[i]);
 	}
+
+	return 1;
+}
+
+/**********************************************************
+ Our sampling function for string. This is called always
+ in sync with the above function.
+***********************************************************/
+int sample_strings(double time, int num_strings, char **values)
+{
+	for (int i=0;i<num_strings;i++)
+	{
+		printf("\t\"%s\"",values[i]);
+	}
 	printf("\n");
 
 	return 1;
@@ -152,7 +166,7 @@ int main(int argc, char **argv)
 {
 	struct simulation_context *sc;
 	struct integration_settings settings;
-	char **names;
+	const char **names;
 
 	parse_args(argc, argv);
 
@@ -173,6 +187,7 @@ int main(int argc, char **argv)
 
 	integration_settings_init(&settings);
 	settings.sample_func = sample;
+	settings.sample_str_func = sample_strings;
 	settings.absolute_error = error;
 	settings.relative_error = error;
 	settings.time = maxtime;

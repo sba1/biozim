@@ -36,7 +36,7 @@ struct simulation_context
 	struct environment global_env;
 
 	/* Convenience-array of value names, NULL terminated */
-	char **names;
+	const char **names;
 
 	/* Contains indices to values which have an ODE attached */
 	struct value **unfixed;
@@ -49,6 +49,7 @@ struct simulation_context
 
 	/* Valid during stochastic integration. The sampling function. It is called for every sampled time point */
 	int (*sample_func)(double time, int num_values, double *values);
+	int (*sample_str_func)(double time, int num_strings, char **values);
 
 	/* Contains indices to values which don't have an ODE attached */
 	struct value **fixed;
@@ -65,6 +66,9 @@ struct simulation_context
 	/* Indicates the event's trigger state */
 	int *events_active;
 
+	/* Indicates whether there any knockout events */
+	int has_knockout_events;
+
 	/* Number of reactions */
 	unsigned int num_reactions;
 
@@ -75,6 +79,8 @@ struct simulation_context
 	void *dlhandle;
 	int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
 	int (*dlcheck_trigger)(double t, double *y, int *events_active);
+
+	char **knocked_out_ptr;
 
 	/* Preallocated space for the dlrhs function */
 	double *dly;
@@ -96,6 +102,11 @@ struct assignment
 struct event
 {
 	ASTNode *trigger;
+
+	/* Special knockout stuff */
+	int is_knockout_event;
+	int knocked_out;
+	const char *affects;
 
 	unsigned int num_assignments;
 	struct assignment assignments[0];
@@ -500,20 +511,40 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	unsigned int numEventAssignments = e->getNumEventAssignments();
 	 	struct event *ev;
 
+	 	if (!(ev = (struct event*)malloc(sizeof(*ev)+sizeof(struct assignment)*numEventAssignments)))
+	 	{
+			fprintf(stderr,"Could not allocate memory\n");
+			goto bailout;
+	 	}
+
+	 	ev->is_knockout_event = 0;
+
+	 	/* Extract knockout annotation (if any)
+	 	 *
+	 	 * TODO: Probably it would be better to add a further assignment
+	 	 * instead of separate code.
+	 	 */
 	 	XMLNode *annotation = e->getAnnotation();
 	 	if (annotation != NULL)
 	 	{
 	 		for (unsigned int i=0;i<annotation->getNumChildren();i++)
 	 		{
 	 			XMLNode child = annotation->getChild(i);
+
+	 			if (child.getName() == "knockout")
+	 			{
+	 				string on = child.getAttributes().getValue("on");
+	 				string time = child.getAttributes().getValue("t");
+	 				string affects = child.getAttributes().getValue("affects");
+
+	 				ev->is_knockout_event = 1;
+	 				ev->knocked_out = on == "true";
+	 				ev->affects = strdup(affects.c_str());
+	 				sc->has_knockout_events = 1;
+	 			}
 	 		}
 	 	}
 
-	 	if (!(ev = (struct event*)malloc(sizeof(*ev)+sizeof(struct assignment)*numEventAssignments)))
-	 	{
-			fprintf(stderr,"Could not allocate memory\n");
-			goto bailout;
-	 	}
 
 	 	ev->num_assignments = numEventAssignments;
 	 	ev->trigger = e->getTrigger()->getMath()->deepCopy();
@@ -812,19 +843,24 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 /**********************************************************
  Returns an NULL-terminated array with names of the
  variables. Memory is freed upon simulation_context_free()
- call.
+ call. This will not only return the names of the values
+ of type double but also of type char *.
 ***********************************************************/
-char **simulation_get_value_names(struct simulation_context *sc)
+const char **simulation_get_value_names(struct simulation_context *sc)
 {
+	int num_names;
 	unsigned int i;
 
-	if (sc->names) return sc->names;
+	num_names = sc->global_env.num_values;
+	if (sc->has_knockout_events) num_names++;
 
-	if (!(sc->names = (char**)malloc(sizeof(char*)*(sc->global_env.num_values+1))))
+	if (!(sc->names = (const char**)malloc(sizeof(char*)*(num_names+1))))
 		return NULL;
 
 	for (i=0;i<sc->global_env.num_values;i++)
 		sc->names[i] = sc->global_env.values[i]->name;
+	if (sc->has_knockout_events)
+		sc->names[i++] = "affected";
 	sc->names[i] = NULL;
 	return sc->names;
 }
@@ -839,6 +875,9 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 	char *command;
 	int rc;
 	FILE *out;
+
+	void *handle = NULL;
+	char *error = NULL;
 
 	if (!(out = fopen(filename,"w")))
 	{
@@ -903,6 +942,12 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 		}
 		fprintf(out,"}\n\n");
 
+		/**** Affective events support ****/
+		if (sc->has_knockout_events)
+		{
+			fprintf(out,"char *jit_knocked_out = \"\";\n");
+		}
+
 		/**** check_trigger() ****/
 		/* The arrays span the whole value space */
 		fprintf(out,"int check_trigger(double t, double *y, int *events_active)\n{\n");
@@ -927,12 +972,17 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 			fprintf(out, "\t\t\tevents_active[%d]=1;\n",i);
 			fprintf(out, "\t\t\tfired=1;\n");
 
+			if (ev->is_knockout_event)
+				fprintf(out, "\t\t\tjit_knocked_out=\"%s\";\n",ev->knocked_out?ev->affects:"");
+
 			for (unsigned j=0;j<ev->num_assignments;j++)
 			{
 				struct assignment *a = &ev->assignments[j];
 
 				fprintf(out,"\t\t\ty[%d]=%s=%s;\n",a->value->index,a->value->name,SBML_formulaToString(a->math));
 			}
+
+			if (ev->is_knockout_event);
 
 			fprintf(out, "\t\t}\n");
 			fprintf(out, "\t} else events_active[%d]=0;\n",i);
@@ -948,34 +998,45 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 	snprintf(command,500,"gcc -O3 -fPIC -shared test.c -o test.so");
 	fprintf(stderr,"%s\n",command);
 
-	if (!(rc = system(command)))
-	{
-		void *handle = dlopen("./test.so",RTLD_NOW);
-		if (handle)
-		{
-			char *error;
-
-			sc->dlrhs = (int (*)(double t, double *y, double *ydot, void *f_data))dlsym(handle,"rhs");
-			if (!(error = dlerror()))
-			{
-				sc->dlcheck_trigger = (int (*)(double t, double *y, int *events_active))dlsym(handle,"check_trigger");
-				if (!(error = dlerror()))
-				{
-					sc->dlhandle = handle;
-					free(command);
-					return 1;
-				}
-			}
-			fprintf(stderr,"%s\n",error);
-			sc->dlrhs = NULL;
-			sc->dlcheck_trigger = NULL;
-			dlclose(handle);
-		} else
-		{
-			fprintf(stderr,"dlopen() failed\n%s\n",dlerror());
-		}
-	}
+	rc = system(command);
 	free(command);
+
+	if (rc)
+		goto bailout;
+
+	if (!(handle = dlopen("./test.so",RTLD_NOW)))
+	{
+		fprintf(stderr,"dlopen() failed: %s\n",dlerror());
+		goto bailout;
+	}
+
+	sc->dlrhs = (int (*)(double t, double *y, double *ydot, void *f_data))dlsym(handle,"rhs");
+	if ((error = dlerror()))
+		goto bailout;
+
+	sc->dlcheck_trigger = (int (*)(double t, double *y, int *events_active))dlsym(handle,"check_trigger");
+	if ((error = dlerror()))
+		goto bailout;
+
+	if (sc->has_knockout_events)
+	{
+		sc->knocked_out_ptr = (char**)dlsym(handle,"jit_knocked_out");
+
+		if ((error = dlerror()))
+			goto bailout;
+	}
+	sc->dlhandle = handle;
+
+	return 1;
+bailout:
+	if (error != NULL)
+		fprintf(stderr,"%s\n",error);
+	if (handle != NULL)
+		dlclose(handle);
+
+	sc->dlrhs = NULL;
+	sc->dlcheck_trigger = NULL;
+	sc->knocked_out_ptr = NULL;
 	return 0;
 }
 
@@ -1229,6 +1290,8 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	unsigned int stoich_mat_entries = 0;
 
 	sc->sample_func = settings->sample_func;
+	sc->sample_str_func = settings->sample_str_func;
+
 	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
 		return;
 
@@ -1837,6 +1900,12 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 			goto out;
 	}
 
+	if (settings->sample_str_func)
+	{
+		if (!settings->sample_str_func(0.0,1,sc->knocked_out_ptr))
+			goto out;
+	}
+
 	CVodeSetMaxNumSteps(cvode_mem,1000000);
 
 	for (i=1;i<=steps;i++)
@@ -1875,6 +1944,13 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		if (settings->sample_func)
 		{
 			if (!settings->sample_func(tmax*i/steps,num_values,value_space))
+				goto out;
+
+		}
+
+		if (settings->sample_str_func)
+		{
+			if (!settings->sample_str_func(0.0,1,sc->knocked_out_ptr))
 				goto out;
 		}
 	}
