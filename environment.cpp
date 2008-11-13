@@ -59,7 +59,8 @@ void environment_query_all(const struct environment *env, int (*callback)(struct
 }
 
 /*****************************************************
- Returns whether the 
+ Returns whether the environment variable is defined
+ not.
 ******************************************************/
 int environment_is_value_defined(const struct environment *env, const char *name)
 {
