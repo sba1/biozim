@@ -14,6 +14,7 @@ static int stochastic;
 static int output_time;
 static double maxtime;
 static double error;
+static int sample_steps;
 
 int verbose; /* used by other modules */
 
@@ -27,10 +28,11 @@ static void usage(char *name)
 			"Loads the given SBML-File and performs a simulation run.\n"
 			"Specify '-' to read from stdin.\n"
 			"\t-h, --help               show this help and quit.\n"
-			"\t    --error              speciifies the error (absolute and relative) given in double.\n"
+			"\t    --error              specifies the error (absolute and relative) given in double.\n"
 			"\t    --force-interpreted  forces the interpreted calculation of the rhs.\n"
 			"\t    --maxtime            specifies the end time (defaults to 1).\n"
 			"\t    --output-time        outputs the current time (stderr).\n"
+			"\t    --sample-steps       the number of sample steps (defaults to 5000).\n"
 			"\t    --stiff              use solver for stiff ODEs.\n"
 			"\t    --stochastic         apply stochastic simulation.\n"
 			"\t    --verbose            verbose output.\n",
@@ -50,6 +52,7 @@ static void parse_args(int argc, char *argv[])
 
 	maxtime = 1.0;
 	error = 1e-10;
+	sample_steps = 5000;
 
 	for (i=1;i<argc;i++)
 	{
@@ -72,6 +75,24 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--stochastic"))
 		{
 			stochastic = 1;
+		} else if (!strcmp(argv[i], "--sample-steps"))
+		{
+			char *nr_arg;
+
+			if (argv[i][9]=='=')
+				nr_arg = &argv[i][10];
+			else
+			{
+				nr_arg = argv[i+1];
+				i++;
+
+				if (i>=argc)
+				{
+					fprintf(stderr,"The --sample-steps option needs an integer argument.\n");
+					exit(-1);
+				}
+			}
+			sample_steps = strtod(nr_arg, NULL);
 		} else if (!strcmp(argv[i],"--maxtime"))
 		{
 			char *nr_arg;
@@ -85,7 +106,7 @@ static void parse_args(int argc, char *argv[])
 
 				if (i>=argc)
 				{
-					fprintf(stderr,"The --maxtime option needs an argument.\n");
+					fprintf(stderr,"The --maxtime option needs an integer argument.\n");
 					exit(-1);
 				}
 			}
@@ -103,7 +124,7 @@ static void parse_args(int argc, char *argv[])
 
 				if (i>=argc)
 				{
-					fprintf(stderr,"The --maxtime option needs an argument.\n");
+					fprintf(stderr,"The --error option needs an argument.\n");
 					exit(-1);
 				}
 			}
@@ -120,10 +141,12 @@ static void parse_args(int argc, char *argv[])
 
 	if (!filename_given)
 	{
-		fprintf(stderr,"No filename has been specifed!\n");
+		fprintf(stderr,"No filename has been specified!\n");
 		usage(argv[0]);
 		exit(-1);
 	}
+
+	if (sample_steps < 1) sample_steps = 1;
 }
 
 /**********************************************************
@@ -191,7 +214,7 @@ int main(int argc, char **argv)
 	settings.absolute_error = error;
 	settings.relative_error = error;
 	settings.time = maxtime;
-	settings.steps = 5000;
+	settings.steps = sample_steps;
 	settings.force_interpreted = force_interpreted;
 	settings.stochastic = stochastic;
 	settings.stiff = stiff;
