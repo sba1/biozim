@@ -68,6 +68,8 @@ struct simulation_context
 
 	/* Indicates whether there any knockout events */
 	int has_knockout_events;
+	const char **affected;
+	unsigned int num_affected;
 
 	/* Number of reactions */
 	unsigned int num_reactions;
@@ -189,6 +191,47 @@ static struct value *simulation_context_add_species(struct simulation_context *s
 	v->fixed = s->getBoundaryCondition();
 	v->is_species = 1;
 	return v;
+}
+
+
+/**
+ * Returns the index of the given affected name or -1 if it can't be found.
+ *
+ * @param sc
+ * @param affected
+ * @return
+ */
+static int simulation_context_affected_index(struct simulation_context *sc, const char *affected)
+{
+	unsigned int i;
+
+	for (i=0;i<sc->num_affected;i++)
+	{
+		if (!strcmp(affected,sc->affected[i]))
+			return i;
+	}
+	return -1;
+}
+
+/**
+ * Adds a new element to the affected list. Does nothing if the element has
+ * already been added.
+ *
+ * @param sc
+ * @param affected
+ * @return
+ */
+static int simulation_context_add_affected(struct simulation_context *sc, const char *affected)
+{
+	if (simulation_context_affected_index(sc,affected) != -1)
+		return 1;
+
+	if (!(sc->affected = (const char**)realloc(sc->affected,(sc->num_affected + 1)* sizeof(char*))))
+		return 0;
+	sc->affected[sc->num_affected] = affected;
+	sc->num_affected++;
+
+	return 1;
 }
 
 /***********************************************/
@@ -534,12 +577,13 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 			if (child.getName() == "knockout")
 	 			{
 	 				string on = child.getAttributes().getValue("on");
-	 				string time = child.getAttributes().getValue("t");
+/*	 				string time = child.getAttributes().getValue("t");*/
 	 				string affects = child.getAttributes().getValue("affects");
 
 	 				ev->is_knockout_event = 1;
 	 				ev->knocked_out = on == "true";
 	 				ev->affects = strdup(affects.c_str());
+	 				simulation_context_add_affected(sc,ev->affects);
 	 				sc->has_knockout_events = 1;
 	 			}
 	 		}
@@ -887,6 +931,7 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 
 	/* Build the source code */
 	fprintf(out,"#include <stdio.h>\n");
+	fprintf(out,"#include <string.h>\n");
 	fprintf(out,"#include <math.h>\n\n");
 
 	if (sc->num_events == 0)
@@ -946,6 +991,20 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 		if (sc->has_knockout_events)
 		{
 			fprintf(out,"char *jit_knocked_out = \"\";\n");
+			fprintf(out,"static unsigned char jit_knocked_out_buf[2000];\n");
+			fprintf(out,"static int jit_affected_active[%d];\n",sc->num_affected);
+			fprintf(out,"static void build_buf(void)\n");
+			fprintf(out,"{\n");
+			fprintf(out,"\tint l;\n");
+			fprintf(out,"\tjit_knocked_out_buf[0]=0;\n");
+			for (i=0;i<sc->num_affected;i++)
+			{
+				fprintf(out,"\tif (jit_affected_active[%d]) strcat(jit_knocked_out_buf,\"%s,\");\n",i,sc->affected[i]);
+			}
+			fprintf(out,"\tl=strlen(jit_knocked_out_buf);\n");
+			fprintf(out,"\tif (l) jit_knocked_out_buf[l-1]=0;\n");
+			fprintf(out,"\tjit_knocked_out = jit_knocked_out_buf;\n");
+			fprintf(out,"}\n");
 		}
 
 		/**** check_trigger() ****/
@@ -973,7 +1032,17 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 			fprintf(out, "\t\t\tfired=1;\n");
 
 			if (ev->is_knockout_event)
-				fprintf(out, "\t\t\tjit_knocked_out=\"%s\";\n",ev->knocked_out?ev->affects:"");
+			{
+				//fprintf(out, "\t\t\tjit_knocked_out=\"%s\";\n",ev->knocked_out?ev->affects:"");
+				int idx = simulation_context_affected_index(sc,ev->affects);
+				if (idx != -1)
+				{
+					fprintf(out, "\t\t\tjit_affected_active[%d]=%d;\n",idx,ev->knocked_out);
+					fprintf(out, "\t\t\tbuild_buf();\n");
+				}
+				else
+					fprintf(stderr,"Couldn't locate %s!\n",ev->affects);
+			}
 
 			for (unsigned j=0;j<ev->num_assignments;j++)
 			{
@@ -981,8 +1050,6 @@ static int simulation_context_prepare_jit(struct simulation_context *sc)
 
 				fprintf(out,"\t\t\ty[%d]=%s=%s;\n",a->value->index,a->value->name,SBML_formulaToString(a->math));
 			}
-
-			if (ev->is_knockout_event);
 
 			fprintf(out, "\t\t}\n");
 			fprintf(out, "\t} else events_active[%d]=0;\n",i);
