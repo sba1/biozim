@@ -1969,7 +1969,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 	if (settings->sample_str_func)
 	{
-		if (!settings->sample_str_func(0.0,1,sc->knocked_out_ptr))
+		if (!settings->sample_str_func(0.0,sc->knocked_out_ptr?1:0,sc->knocked_out_ptr))
 			goto out;
 	}
 
@@ -2017,7 +2017,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 		if (settings->sample_str_func)
 		{
-			if (!settings->sample_str_func(0.0,1,sc->knocked_out_ptr))
+			if (!settings->sample_str_func(0.0,sc->knocked_out_ptr?1:0,sc->knocked_out_ptr))
 				goto out;
 		}
 	}
