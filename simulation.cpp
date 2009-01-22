@@ -1204,9 +1204,36 @@ uint64_t binomial(int N, int K)
 void simulation_integrate_stochastic(struct simulation_context *sc, struct integration_settings *settings)
 {
 	double t;
+	double tcb; /* callback remainder */
 	double tmax = settings->time;
+	int steps = settings->steps;
+	int step = 0;
+	double tdelta = tmax / steps;
+	double tcb1 = 0;
+
+	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
+		return;
+
+	sc->sample_func = settings->sample_func;
+	sc->sample_str_func = settings->sample_str_func;
+
+	srandom(time(NULL));
 
 	t = 0;
+	tcb = 0;
+
+	/* Callback */
+	for (unsigned int i=0;i<sc->global_env.num_values;i++)
+	{
+		struct value *v;
+
+		v = sc->global_env.values[i];
+
+		if (v->is_species) sc->value_space[i] = v->molecules;
+		else sc->value_space[i] = v->value;
+	}
+	if (sc->sample_func) sc->sample_func(t,sc->global_env.num_values, sc->value_space);
+	if (sc->sample_str_func) sc->sample_str_func(t,0,NULL);
 
 	while (t < tmax)
 	{
@@ -1219,24 +1246,30 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 			struct reaction *r = &sc->reactions[i];
 			double h_c = 1.0;
 
-			for (unsigned j=0;j<r->num_reactants;j++)
-			{
-				struct reference *ref = &r->reactants[j];
-
-				h_c *= binomial(ref->value->molecules,evaluate(&sc->global_env,ref->stoich));
-			}
+//			for (unsigned j=0;j<r->num_reactants;j++)
+//			{
+//				struct reference *ref = &r->reactants[j];
+//				printf("r%d: stoich=%lf\n",i,evaluate(&sc->global_env,ref->stoich));
+//
+//				h_c *= binomial(ref->value->molecules,evaluate(&sc->global_env,ref->stoich));
+//			}
 
 			r->h = h_c;
 			r->c = evaluate(&sc->global_env, r->formula);
 			r->a = r->h * r->c;
 
+//			printf("r%d: h_c=%lf c=%lf a=%lf  %s\n",i,h_c,r->c,r->a, SBML_formulaToString(r->formula));
+
 			a_all += r->a;
 		}
 
+		if (a_all == 0) break;
+
 		double r1 = random()/(double)RAND_MAX;
 		double r2 = random()/(double)RAND_MAX;
-
 		double tau = (1.0/a_all) * log(1.0/r1);
+
+//		printf("step=%d a_all=%lf r2*a_all=%lf tau=%lf\n",step,a_all,r2*a_all,tau);
 
 		for (unsigned int i=0;i<sc->num_reactions;i++)
 		{
@@ -1245,20 +1278,56 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 			a_sum += r->a;
 			if (a_sum >= r2*a_all)
 			{
+//				printf("reaction %d\n",i);
+
 				for (unsigned j=0;j<r->num_reactants;j++)
-					r->reactants[j].value->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich);
+				{
+//					printf("sub from %s: %lf\n",r->reactants[j].value->name,evaluate(&sc->global_env,r->reactants[j].stoich));
+
+					if (!r->reactants[j].value->fixed)
+					{
+						r->reactants[j].value->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich);
+						r->reactants[j].value->value = r->reactants[j].value->molecules;
+					}
+				}
 
 				for (unsigned j=0;j<r->num_products;j++)
-					r->products[j].value->molecules += evaluate(&sc->global_env,r->products[j].stoich);
+				{
+//					printf("add to %s: %lf\n",r->products[j].value->name,evaluate(&sc->global_env,r->products[j].stoich));
 
+					if (!r->products[j].value->fixed)
+					{
+						r->products[j].value->molecules += evaluate(&sc->global_env,r->products[j].stoich);
+						r->products[j].value->value = r->products[j].value->molecules;
+					}
+				}
 				break;
 			}
 		}
-		t += tau;
-
+//printf("\n");
 		for (unsigned int i=0;i<sc->global_env.num_values;i++)
-			printf("\t%d",sc->global_env.values[i]->molecules);
-		printf("\n");
+		{
+			struct value *v;
+
+			v = sc->global_env.values[i];
+
+			if (v->is_species) sc->value_space[i] = v->molecules;
+			else sc->value_space[i] = v->value;
+		}
+
+		t += tau;
+		tcb += tau;
+		while (tcb > tdelta)
+		{
+			tcb -= tdelta;
+			tcb1 += tdelta;
+			if (tcb1 >= tmax) break;
+
+			if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
+			if (sc->sample_str_func) sc->sample_str_func(t,0,NULL);
+		}
+
+		step++;
 	}
 }
 
@@ -1269,6 +1338,7 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
 {
 	struct simulation_context *sc;
 	unsigned int i;
+	int rc;
 
 	sc = (struct simulation_context*)userdata;
 
@@ -1277,7 +1347,10 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
 
 	sc = (struct simulation_context *)userdata;
 
-	return sc->sample_func(t,sc->global_env.num_values, sc->value_space);
+	rc = sc->sample_func(t,sc->global_env.num_values, sc->value_space);
+	if (sc->sample_str_func) rc |= sc->sample_str_func(t,0,NULL);
+
+	return rc;
 }
 
 /**********************************************************
@@ -1863,7 +1936,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 {
 	if (settings->stochastic)
 	{
-		simulation_integrate_stochastic_quick(sc, settings);
+		simulation_integrate_stochastic(sc, settings);
 		return;
 	}
 
