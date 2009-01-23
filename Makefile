@@ -8,6 +8,7 @@ ODE_OBJS = ode/ODESettings.o
 SBML_OBJS = sbml/SBMLParser.o
 OBJS = $(SBML_OBJS) $(ODE_OBJS) \
 	environment.o \
+	gnuplot_i.o \
 	sbml2ode.o \
 	simulation.o
 
