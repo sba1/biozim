@@ -472,23 +472,27 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		{
 			Parameter *p = kineticLaw->getParameter(j);
 			ASTNode *new_param;
-			const char *org_name = p->getName().c_str();
-			struct value *v;
-			char *new_param_name;
 
-			if (!(new_param_name = (char*)malloc(strlen(org_name) + strlen(reactionName) + 20)))
+			/* Note that getId() was getName() before */
+
+			const char *org_id = p->getId().c_str();
+			struct value *v;
+			char *new_id;
+
+			if (!(new_id = (char*)malloc(strlen(org_id) + strlen(reactionName) + 20)))
 				goto bailout;
-			sprintf(new_param_name,"%s_%s_r%d",org_name,reactionName,i);
+			sprintf(new_id,"%s_%s_r%d",org_id,reactionName,i);
+
 			if (!(new_param = new ASTNode(AST_NAME)))
 				goto bailout;
-			new_param->setName(new_param_name);
+			new_param->setName(new_id);
 
-			if (!(v = environment_add_value(&sc->global_env,new_param_name)))
+			if (!(v = environment_add_value(&sc->global_env,new_id)))
 				goto bailout;
 			v->fixed = 1;
 			environment_set_value_double(v,p->getValue());
 
-			formula->ReplaceArgument(p->getName(),new_param);
+			formula->ReplaceArgument(p->getId(),new_param);
 		}
 
 		sc->reactions[i].formula = formula;
@@ -1217,7 +1221,18 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 	sc->sample_func = settings->sample_func;
 	sc->sample_str_func = settings->sample_str_func;
 
-	srandom(time(NULL));
+	{
+		unsigned int seed=0x278378;
+
+		FILE *urand = fopen("/dev/urandom","rb");
+		if (urand)
+		{
+			fread(&seed,1,sizeof(seed),urand);
+			fclose(urand);
+		} else seed = time(NULL) + clock();
+
+		srandom(seed);
+	}
 
 	t = 0;
 	tcb = 0;
@@ -1263,7 +1278,10 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 			a_all += r->a;
 		}
 
-		if (a_all == 0) break;
+		if (a_all == 0)
+		{
+			break;
+		}
 
 		double r1 = random()/(double)RAND_MAX;
 		double r2 = random()/(double)RAND_MAX;
@@ -1275,7 +1293,10 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 		{
 			struct reaction *r = &sc->reactions[i];
 
+			if (r->a == 0) continue;
+
 			a_sum += r->a;
+
 			if (a_sum >= r2*a_all)
 			{
 //				printf("reaction %d\n",i);
@@ -1324,10 +1345,18 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 			if (tcb1 >= tmax) break;
 
 			if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
-			if (sc->sample_str_func) sc->sample_str_func(t,0,NULL);
+			if (sc->sample_str_func) sc->sample_str_func(tcb1,0,NULL);
 		}
 
 		step++;
+	}
+
+	while (t < tmax)
+	{
+		t += tdelta;
+		tcb1 += tdelta;
+		if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
+		if (sc->sample_str_func) sc->sample_str_func(tcb1,0,NULL);
 	}
 }
 
