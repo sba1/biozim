@@ -6,7 +6,7 @@ class ASTNode;
 struct value
 {
 	/* The name of the value */
-	char *name;
+	const char *name;
 
 	/* The value's actual value (used for ODEs) */
 	double value;
@@ -16,7 +16,7 @@ struct value
 
 	/* Whether fixed */
 	int fixed;
-	
+
 	/* Contains the index in the environment */
 	int index;
 
@@ -51,6 +51,6 @@ double environment_get_value_by_name(const struct environment *env, const char *
 void environment_query_all(const struct environment *env, int (*callback)(struct value *));
 int environment_is_value_defined(const struct environment *env, const char *name);
 void *environment_get_value_handle(const struct environment *env, const char *name);
-struct value *environment_add_value(struct environment *env, char *name);
+struct value *environment_add_value(struct environment *env, const char *name);
 
 #endif

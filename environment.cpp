@@ -80,7 +80,7 @@ void *environment_get_value_handle(const struct environment *env, const char *na
  Add a new value to the environment. Returns NULL
  on an error, i.e., if no memory was available.
 ******************************************************/
-struct value *environment_add_value(struct environment *env, char *name)
+struct value *environment_add_value(struct environment *env, const char *name)
 {
 	struct value *v;
 
