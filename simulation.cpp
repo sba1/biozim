@@ -346,11 +346,13 @@ int get_AST_integer_value(ASTNode *node)
 	return -1;
 }
 
-/*************************************************
- Create a new simulation from an SBML file.
-
- On failure returns NULL.
-*************************************************/
+/**
+ * Create the simulation context from an SBML file.
+ *
+ * @param filename
+ * @return the context to be freed with simulation_context_free or
+ *         NULL on failure.
+ */
 struct simulation_context *simulation_context_create_from_sbml_file(const char *filename)
 {
 	SBMLParser *parser = NULL;
@@ -361,6 +363,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	unsigned int numReactions;
 	unsigned int numParameters;
 	unsigned int numEvents;
+	unsigned int numCompartments;
 	unsigned int i,j,k;
 
 	struct simulation_context *sc;
@@ -399,6 +402,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	numReactions = model->getNumReactions();
 	numParameters = model->getNumParameters();
 	numEvents = model->getNumEvents();
+	numCompartments = model->getNumCompartments();
 
 	value_first = NULL;
 
@@ -407,6 +411,19 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	{
 		Parameter *p = model->getParameter(i);
 		environment_add_parameter(&sc->global_env, p);
+	}
+
+	/* Gather compartments */
+	for (i=0;i<numCompartments;i++)
+	{
+		const char *id;
+		struct value *v;
+
+		Compartment *c = model->getCompartment(i);
+		id = c->getId().c_str();
+		if (!(v = environment_add_value(&sc->global_env,id)))
+			goto bailout;
+		environment_set_value_double(v,c->getSize());
 	}
 
 	/* Gather species */
@@ -433,9 +450,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		struct reaction *r;
 
 		r = &sc->reactions[i];
-
-		/* Initialize environment of reaction parameters */
-//		environment_init(&r->env,&sc->global_env);
 
 		Reaction *reaction = model->getReaction(i);
 		const char *reactionName = reaction->getId().c_str();
