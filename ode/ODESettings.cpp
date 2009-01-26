@@ -5,6 +5,7 @@
  * SBML_odeSolver v 1.6
  */
 
+#include <stdlib.h>
 
 #include "ODESettings.h"
 #include <iostream>

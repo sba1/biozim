@@ -22,6 +22,9 @@ struct value
 
 	int is_species;
 
+	int has_only_substance_units;
+	struct value *compartment_value;
+
 	/* The node of ast describing the right part of the ODE (if any) */
 	ASTNode *node;
 };

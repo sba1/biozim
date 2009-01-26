@@ -190,9 +190,10 @@ static struct value *simulation_context_add_species(struct simulation_context *s
 	}
 	v->fixed = s->getBoundaryCondition();
 	v->is_species = 1;
+	v->has_only_substance_units = s->getHasOnlySubstanceUnits();
+	v->compartment_value = environment_get_value(&sc->global_env,s->getCompartment().c_str());
 	return v;
 }
-
 
 /**
  * Returns the index of the given affected name or -1 if it can't be found.
@@ -288,7 +289,7 @@ static void simulation_context_add_reference(struct simulation_context *sc, Spec
 		if (!(copy = formula->deepCopy()))
 			goto nomem;
 
-		/* Build component with stoichiometry fractor (if present) */
+		/* Build component with stoichiometry factor (if present) */
 		ASTNode *component;
 		if (stoich != NULL)
 		{
@@ -420,16 +421,30 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		struct value *v;
 
 		Compartment *c = model->getCompartment(i);
-		id = c->getId().c_str();
+		if (!(id = strdup(c->getId().c_str())))
+			goto bailout;
+
 		if (!(v = environment_add_value(&sc->global_env,id)))
 			goto bailout;
 		environment_set_value_double(v,c->getSize());
 	}
 
+
+
 	/* Gather species */
 	for (i=0;i<numSpecies;i++)
 	{
 		Species *sp = model->getSpecies(i);
+//		if (!sp->getHasOnlySubstanceUnits())
+//		{
+//			fprintf(stderr,"Warning: Species %s has attribute hasOnlySubstanceUnits set to false.\n", sp->getId().c_str());
+//
+//			if (environment_get_value_by_name(&sc->global_env,sp->getCompartment().c_str()) != 0.0)
+//			{
+//
+//			}
+//		}
+
 		simulation_context_add_species(sc, sp);
 	}
 
@@ -507,6 +522,36 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			environment_set_value_double(v,p->getValue());
 
 			formula->ReplaceArgument(p->getId(),new_param);
+		}
+
+
+		/* Rewrite formulas according to the has_only_substance_units tag */
+		for (j=0;j<numReactants;j++)
+		{
+			ASTNode *div;
+			ASTNode *species;
+			ASTNode *compartment;
+			struct value *v;
+
+			SpeciesReference *ref = reaction->getReactant(j);
+			if (!ref) continue;
+			v = environment_get_value(&sc->global_env,ref->getSpecies().c_str());
+			if (!v || v->has_only_substance_units) continue;
+			if (!v->compartment_value) break;
+
+			if (!(div = new ASTNode(AST_DIVIDE)))
+				goto bailout;
+			if (!(species = new ASTNode(AST_NAME)))
+				goto bailout;
+			if (!(compartment = new ASTNode(AST_NAME)))
+				goto bailout;
+
+			species->setName(strdup(ref->getSpecies().c_str()));
+			compartment->setName(v->compartment_value->name);
+			div->addChild(species);
+			div->addChild(compartment);
+
+			formula->ReplaceArgument(ref->getSpecies(),div);
 		}
 
 		sc->reactions[i].formula = formula;
