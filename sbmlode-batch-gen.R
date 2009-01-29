@@ -1,5 +1,6 @@
-# assumes that all rows match the same time point
+#library(gmp)
 
+# assumes that all rows match the same time point
 drawer<-"results"
 files<-dir(drawer)
 pattern<-"\\.\\d*\\.txt" # we are only interested in these patterns
@@ -16,21 +17,29 @@ for (name in basenames)
 		l<-append(l,list(dat))
 	}
 
+	# first pass: average
 	avg<-l[[1]]
-	var<-l[[1]] * l[[1]]
 	taken<-1
-
 	for (i in 2:length(l))
 	{
 		if (nrow(avg) == nrow(l[[i]]))
 		{
 			avg <- avg + l[[i]]
-			var <- var + l[[i]] * l[[i]]
 			taken<-taken+1
 		}
 	}
 	avg <- avg / taken
-	var <- sqrt(var / (taken - 1) - (avg*avg)*taken/(taken-1))
+
+	# second pass: variance
+	var<-(l[[1]] - avg)*(l[[1]] - avg)
+	for (i in 2:length(l))
+	{
+		if (nrow(var) == nrow(l[[i]]))
+		{
+			var <- var + (l[[i]] - avg)*(l[[i]] - avg)
+		}
+	}
+	var <- sqrt(var / (taken - 1))
 
 	fn<-file.path(drawer,paste(name,".mean.txt",sep=""))
 	print(paste("Writing ",fn," (average of ",taken,")",sep=""))
