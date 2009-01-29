@@ -2,8 +2,10 @@
 
 drawer<-"results"
 files<-dir(drawer)
-basenames<-unique(gsub("\\.\\d*\\.txt","",files,perl=T))
-runs<-as.integer(unique(gsub(".*\\.","",gsub(".txt$","",files,perl=T),perl=T)))
+pattern<-"\\.\\d*\\.txt" # we are only interested in these patterns
+files.filtered<-grep(pattern,files,perl=T,value=T)
+basenames<-unique(gsub(pattern,"",files.filtered,perl=T))
+runs<-as.integer(unique(gsub(".*\\.","",gsub(".txt$","",files.filtered,perl=T),perl=T)))
 
 for (name in basenames)
 {
@@ -15,15 +17,20 @@ for (name in basenames)
 	}
 
 	avg<-l[[1]]
+	taken<-1
 
 	for (i in 2:length(l))
 	{
-		avg <- avg + l[[i]]
+		if (nrow(avg) == nrow(l[[i]]))
+		{
+			avg <- avg + l[[i]]
+			taken<-taken+1
+		}
 	}
-	avg<-avg / length(l)
+	avg <- avg / taken
 
 	fn<-file.path(drawer,paste(name,".mean.txt",sep=""))
-	print(paste("Writing",fn))
+	print(paste("Writing ",fn," (average of ",taken,")",sep=""))
 	write.table(avg,file=file.path(drawer,paste(name,".mean.txt",sep="")),row.names=T)
 
 	if (length(avg$X)>0)
@@ -33,5 +40,16 @@ for (name in basenames)
 		pdf(file=fn)
 		plot(avg$Time,avg$X,type="l")
 		dev.off()
+	} else
+	{
+		if (length(avg$P)>0 && length(avg$P2)>0)
+		{
+			fn<-file.path(drawer,paste(name,".mean.pdf",sep=""))
+			print(paste("Writing",fn))
+			pdf(file=fn)
+			plot(avg$Time,avg$P,type="l")
+			lines(avg$Time,avg$P2,type="l")
+			dev.off()
+		}
 	}
 }
