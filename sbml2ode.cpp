@@ -18,13 +18,15 @@ static double error;
 static int sample_steps;
 static int plot;
 static char **plot_species;
+static int runs = 1;
 
 int verbose; /* used by other modules */
 
-
-/*************************************************
- Displays the program's usage and exits
-*************************************************/
+/**
+ * Displays the program's usage and exits.
+ *
+ * @param name
+ */
 static void usage(char *name)
 {
 	fprintf(stderr, "usage: %s [OPTIONS] SBML-File ...\n"
@@ -36,7 +38,8 @@ static void usage(char *name)
 			"\t    --maxtime            specifies the end time (defaults to 1).\n"
 			"\t    --output-time        outputs the current time (stderr).\n"
 			"\t    --plot [sp1,...,spn] plots the results using gnuplot. Optionally, you can specify\n"
-			"\t                         the species to be plotted (defaults to all)\n"
+			"\t                         the species to be plotted.\n"
+			"\t    --runs               specifies the runs to be performed when in stochastic mode.\n"
 			"\t    --sample-steps       the number of sample steps (defaults to 5000).\n"
 			"\t    --stiff              use solver for stiff ODEs.\n"
 			"\t    --stochastic         apply stochastic simulation.\n"
@@ -141,10 +144,29 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--force-interpreted"))
 		{
 			force_interpreted = 1;
+		} else if (!strcmp(argv[i],"--runs"))
+		{
+			char *nr_arg;
+
+			if (argv[i][7]=='=')
+				nr_arg = &argv[i][8];
+			else
+			{
+				nr_arg = argv[++i];
+				if (i>=argc)
+				{
+					fprintf(stderr,"The --sample-steps option needs an integer argument.\n");
+					exit(-1);
+				}
+			}
+
+			runs = strtod(nr_arg, NULL);
+			if (runs < 0) runs = 0;
 		} else if (!strcmp(argv[i],"--plot"))
 		{
-			plot = 1;
 			char *nr_arg;
+
+			plot = 1;
 
 			if (argv[i][6]=='=')
 				nr_arg = &argv[i][7];
@@ -264,9 +286,14 @@ static struct sample *samples_first;
 static struct sample *samples_last;
 static int samples_total;
 
-/**********************************************************
- Our sampling function.
-***********************************************************/
+/**
+ * Our sampling function.
+ *
+ * @param time
+ * @param num_values
+ * @param values
+ * @return
+ */
 int sample(double time, int num_values, double *values)
 {
 	if (output_time)
@@ -308,10 +335,15 @@ leave:
 	return 1;
 }
 
-/**********************************************************
- Our sampling function for string. This is called always
- in sync with the above function.
-***********************************************************/
+/**
+ * Our sampling function for string. This is called always
+ * in sync with the above function.
+ *
+ * @param time
+ * @param num_strings
+ * @param values
+ * @return
+ */
 int sample_strings(double time, int num_strings, char **values)
 {
 	for (int i=0;i<num_strings;i++)
@@ -358,6 +390,7 @@ int main(int argc, char **argv)
 	struct simulation_context *sc;
 	struct integration_settings settings;
 	const char **names;
+	int run;
 
 	parse_args(argc, argv);
 
@@ -387,7 +420,17 @@ int main(int argc, char **argv)
 	settings.stochastic = stochastic;
 	settings.stiff = stiff;
 
-	simulation_integrate(sc,&settings);
+	if (runs > 1 && !stochastic)
+	{
+		fprintf(stderr,"The --runs parameter has been ignored as we don't run in stochastic mode.\n");
+		runs = 1;
+	}
+
+	for (run=0;run<runs;run++)
+	{
+		simulation_context_reset(sc);
+		simulation_integrate(sc,&settings);
+	}
 
 	if (plot && samples_first)
 	{
@@ -435,5 +478,3 @@ int main(int argc, char **argv)
 bailout:
 	return EXIT_FAILURE;
 }
-
-

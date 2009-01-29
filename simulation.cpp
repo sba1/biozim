@@ -35,6 +35,9 @@ struct simulation_context
 	/* The global environment, here species and global parameters are added */
 	struct environment global_env;
 
+	/* Snapshot after initialization */
+	struct environment_snapshot *init_snap;
+
 	/* Convenience-array of value names, NULL terminated */
 	const char **names;
 
@@ -435,16 +438,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	for (i=0;i<numSpecies;i++)
 	{
 		Species *sp = model->getSpecies(i);
-//		if (!sp->getHasOnlySubstanceUnits())
-//		{
-//			fprintf(stderr,"Warning: Species %s has attribute hasOnlySubstanceUnits set to false.\n", sp->getId().c_str());
-//
-//			if (environment_get_value_by_name(&sc->global_env,sp->getCompartment().c_str()) != 0.0)
-//			{
-//
-//			}
-//		}
-
 		simulation_context_add_species(sc, sp);
 	}
 
@@ -723,12 +716,28 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		exit(-1);
 	}
 
+	if (!(sc->init_snap = environment_snapshot(&sc->global_env)))
+	{
+		fprintf(stderr,"Couldn't create an environment snapshot!\n");
+		goto bailout;
+	}
+
 	delete parser;
 	return sc;
 
 bailout:
 	if (parser) delete parser;
 	return NULL;
+}
+
+/**
+ * Resets the given simulation context to its initial state.
+ *
+ * @param sc
+ */
+void simulation_context_reset(struct simulation_context *sc)
+{
+	environment_set_to_snapshot(&sc->global_env,sc->init_snap);
 }
 
 static double evaluate(struct environment *sc, const ASTNode *node)
