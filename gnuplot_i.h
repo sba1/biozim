@@ -1,4 +1,3 @@
-
 /*-------------------------------------------------------------------------*/
 /**
   @file		gnuplot_i.h
@@ -11,7 +10,7 @@
   Unix. It compiles and works quite well on a number of Unix flavours as
   well as other operating systems. The following module enables sending
   display requests to gnuplot through simple C calls.
-  
+
 */
 /*--------------------------------------------------------------------------*/
 
@@ -24,6 +23,11 @@
 
 #ifndef _GNUPLOT_PIPES_H_
 #define _GNUPLOT_PIPES_H_
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 
 /*---------------------------------------------------------------------------
                                 Includes
@@ -64,7 +68,7 @@
 typedef struct _GNUPLOT_CTRL_ {
     /** Pipe to gnuplot process */
     FILE    * gnucmd ;
-    
+
     /** Number of currently active plots */
     int       nplots ;
 	/** Current plotting style */
@@ -107,7 +111,7 @@ typedef struct _GNUPLOT_CTRL_ {
   gnuplot_get_program_path("csh") returns "/usr/bin"
   gnuplot_get_program_path("/bin/ls") returns NULL
   @endverbatim
-  
+
  */
 /*-------------------------------------------------------------------------*/
 char * gnuplot_get_program_path(char * pname);
@@ -295,12 +299,12 @@ void gnuplot_plot_xy(
     double          *   x,
     double          *   y,
     int                 n,
-    char            *   title
+    const char      *   title
 ) ;
 
 
 /*-------------------------------------------------------------------------*/
-/** 
+/**
   @brief    Open a new session, plot a signal, close the session.
   @param    title   Plot title
   @param    style   Plot style
@@ -386,5 +390,9 @@ void gnuplot_plot_slope(
  */
 /*--------------------------------------------------------------------------*/
 void gnuplot_plot_equation(gnuplot_ctrl * h, char * equation, char * title) ;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
