@@ -45,10 +45,19 @@ struct environment
 	unsigned int num_values_allocated;
 };
 
+struct environment_snapshot
+{
+	int num_entries;
+	double *dbl_values;
+	int *int_values;
+};
 
 #define environment_set_value_double(v,d) ((struct value*)v)->value = d
 
 void environment_init(struct environment *env, struct environment *parent);
+struct environment_snapshot *environment_snapshot(struct environment *env);
+void environment_set_to_snapshot(struct environment *env, struct environment_snapshot *snap);
+void environment_free_snapshot(struct environment_snapshot *snap);
 struct value *environment_get_value(const struct environment *env, const char *name);
 double environment_get_value_by_name(const struct environment *env, const char *name);
 void environment_query_all(const struct environment *env, int (*callback)(struct value *));

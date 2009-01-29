@@ -116,3 +116,67 @@ struct value *environment_add_value(struct environment *env, const char *name)
 	return v;
 }
 
+/**
+ * Snapshots the current environment.
+ *
+ * @param env
+ * @return
+ */
+struct environment_snapshot *environment_snapshot(struct environment *env)
+{
+	struct environment_snapshot *snap;
+
+	unsigned int i;
+
+	if (!(snap = (struct environment_snapshot*)malloc(sizeof(*snap))))
+		return NULL;
+	if (!(snap->dbl_values = (double*) malloc(env->num_values * sizeof(double))))
+	{
+		free(snap);
+		return NULL;
+	}
+	if (!(snap->int_values = (int*)malloc(env->num_values * sizeof(int))))
+	{
+		free(snap->dbl_values);
+		free(snap);
+		return NULL;
+	}
+
+	snap->num_entries = env->num_values;
+	for (i=0;i<env->num_values;i++)
+	{
+		snap->dbl_values[i] = env->values[i]->value;
+		snap->int_values[i] = env->values[i]->molecules;
+	}
+	return snap;
+}
+
+
+/**
+ * Sets the values to the content of the snapshot.
+ *
+ * @param env
+ * @param snap
+ */
+void environment_set_to_snapshot(struct environment *env, struct environment_snapshot *snap)
+{
+	int i;
+
+	for (i=0;i<snap->num_entries;i++)
+	{
+		env->values[i]->value = snap->dbl_values[i];
+		env->values[i]->molecules = snap->int_values[i];
+	}
+}
+
+/**
+ * Frees all resources associated with the given snapshot.
+ *
+ * @param snap
+ */
+void environment_free_snapshot(struct environment_snapshot *snap)
+{
+	free(snap->int_values);
+	free(snap->dbl_values);
+	free(snap);
+}
