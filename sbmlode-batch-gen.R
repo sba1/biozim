@@ -17,6 +17,7 @@ for (name in basenames)
 	}
 
 	avg<-l[[1]]
+	var<-l[[1]] * l[[1]]
 	taken<-1
 
 	for (i in 2:length(l))
@@ -24,10 +25,12 @@ for (name in basenames)
 		if (nrow(avg) == nrow(l[[i]]))
 		{
 			avg <- avg + l[[i]]
+			var <- var + l[[i]] * l[[i]]
 			taken<-taken+1
 		}
 	}
 	avg <- avg / taken
+	var <- sqrt(var / (taken - 1) - (avg*avg)*taken/(taken-1))
 
 	fn<-file.path(drawer,paste(name,".mean.txt",sep=""))
 	print(paste("Writing ",fn," (average of ",taken,")",sep=""))
@@ -40,6 +43,12 @@ for (name in basenames)
 		pdf(file=fn)
 		plot(avg$Time,avg$X,type="l")
 		dev.off()
+
+		fn<-file.path(drawer,paste(name,".var.pdf",sep=""))
+		print(paste("Writing",fn))
+		pdf(file=fn)
+		plot(avg$Time,var$X,type="l")
+		dev.off()
 	} else
 	{
 		if (length(avg$P)>0 && length(avg$P2)>0)
@@ -49,6 +58,13 @@ for (name in basenames)
 			pdf(file=fn)
 			plot(avg$Time,avg$P,type="l")
 			lines(avg$Time,avg$P2,type="l")
+			dev.off()
+
+			fn<-file.path(drawer,paste(name,".var.pdf",sep=""))
+			print(paste("Writing",fn))
+			pdf(file=fn)
+			plot(avg$Time,var$P,type="l")
+			lines(avg$Time,var$P2,type="l")
 			dev.off()
 		}
 	}
