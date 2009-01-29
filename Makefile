@@ -1,8 +1,8 @@
 PROFILE = # -pg
-CC = gcc
+CC = gcc-4.3
 CXX = g++-4.3
-CXXFLAGS =	-O3 $(PROFILE) -g -Wall -fmessage-length=0 -fstrict-aliasing -Wstrict-aliasing
-
+CCFLAGS =	-O3 $(PROFILE) -g -Wall -fmessage-length=0 -fstrict-aliasing -Wstrict-aliasing
+CXXFLAGS =	$(CCFLAGS)
 
 ODE_OBJS = ode/ODESettings.o
 SBML_OBJS = sbml/SBMLParser.o
@@ -17,6 +17,9 @@ LIBS = -L /home/sba/local/lib -lsundials_cvode -lsundials_nvecserial -lsbml -lm 
 INC = -I . -I /home/sba/local/include
 
 TARGET =	sbml2ode
+
+%.o: %.c
+	$(CC) $(CCFLAGS) $(INC) -c $< -o $@
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(INC) -c $< -o $@
