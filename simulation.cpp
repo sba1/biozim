@@ -2026,6 +2026,18 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	sc->value_space = NULL;
 }
 
+/**
+ * Query current values.
+ *
+ * @param sc
+ * @param callback
+ * @param userdata
+ */
+void simulation_context_query_values(struct simulation_context *sc, int (*callback)(struct value *), void *userdata)
+{
+	environment_query_all(&sc->global_env,callback);
+}
+
 /**********************************************************
  Integrates the simulation.
 ***********************************************************/
