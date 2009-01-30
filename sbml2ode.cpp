@@ -8,19 +8,57 @@
 
 /********************************************************/
 
+/** @brief the filename of the sbml file to be processed */
 static const char *model_filename;
-static int force_interpreted;
+
+/** @brief don't use JIT compiling technique to speed up the simulation */
+static int no_jit;
+
+/**
+ * @brief Use stiff the ODE solver
+ *
+ * @note Only applicable for deterministic solver
+ */
 static int stiff;
+
+/** @brief Perform stochastic simulation */
 static int stochastic;
+
+/** @brief Print time to stderr */
 static int output_time;
+
+/** @brief Specifies the time point at which the simulation is stopped */
 static double maxtime;
+
+/** @brief Specifies the error value to be used in deterministic simulation */
 static double error;
+
+/** @brief Number of total samples to be taken */
 static int sample_steps;
+
+/** @brief Species if the result should be plotted */
 static int plot;
+
+/**
+ * @brief Species the species to be considered in the plot
+ *
+ * Can be NULL to indicate that all species needs to be plotted
+ */
 static char **plot_species;
+
+/**
+ * @brief Specifies the number of runs to be performed
+ *
+ * @note Values greater than 1 make sense only when simulation
+ * runs in stochastic mode
+ */
 static int runs = 1;
 
+/** @brief Verbose output to stderr */
 int verbose; /* used by other modules */
+
+
+/********************************************************/
 
 /**
  * Displays the program's usage and exits.
@@ -143,7 +181,7 @@ static void parse_args(int argc, char *argv[])
 			verbose = 1;
 		} else if (!strcmp(argv[i],"--force-interpreted"))
 		{
-			force_interpreted = 1;
+			no_jit = 1;
 		} else if (!strcmp(argv[i],"--runs"))
 		{
 			char *nr_arg;
@@ -416,7 +454,7 @@ int main(int argc, char **argv)
 	settings.relative_error = error;
 	settings.time = maxtime;
 	settings.steps = sample_steps;
-	settings.force_interpreted = force_interpreted;
+	settings.force_interpreted = no_jit;
 	settings.stochastic = stochastic;
 	settings.stiff = stiff;
 
