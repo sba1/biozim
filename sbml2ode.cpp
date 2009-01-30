@@ -30,6 +30,9 @@ static int output_time;
 /** @brief Specifies the time point at which the simulation is stopped */
 static double maxtime;
 
+/** @brief List values */
+static int list_values;
+
 /** @brief Specifies the error value to be used in deterministic simulation */
 static double error;
 
@@ -73,6 +76,7 @@ static void usage(char *name)
 			"\t-h, --help               show this help and quit.\n"
 			"\t    --error              specifies the error (absolute and relative) given in double.\n"
 			"\t    --force-interpreted  forces the interpreted calculation of the rhs.\n"
+			"\t    --list-values        list all values.\n"
 			"\t    --maxtime            specifies the end time (defaults to 1).\n"
 			"\t    --output-time        outputs the current time (stderr).\n"
 			"\t    --plot [sp1,...,spn] plots the results using gnuplot. Optionally, you can specify\n"
@@ -179,6 +183,9 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--verbose"))
 		{
 			verbose = 1;
+		} else if (!strcmp(argv[i],"--list-values"))
+		{
+			list_values = 1;
 		} else if (!strcmp(argv[i],"--force-interpreted"))
 		{
 			no_jit = 1;
@@ -416,6 +423,20 @@ void plot_samples(gnuplot_ctrl *ctrl, int which, const char *name, double *x, do
 	gnuplot_plot_xy(ctrl,x,y,samples_total,name);
 }
 
+#include "environment.h"
+
+/**
+ * Print value.
+ *
+ * @param v
+ * @return
+ */
+static int print_value(struct value *v)
+{
+	printf("%s\t%g\n",v->name,v->value);
+	return 1;
+}
+
 /**
  * Main entry
  *
@@ -435,7 +456,17 @@ int main(int argc, char **argv)
 	if (!(sc = simulation_context_create_from_sbml_file(model_filename)))
 		goto bailout;
 
-	if ((names = simulation_get_value_names(sc)))
+	names = simulation_get_value_names(sc);
+
+	if (list_values)
+	{
+		if (names)
+			simulation_context_query_values(sc,print_value,NULL);
+		simulation_context_free(sc);
+		return 0;
+	}
+
+	if (names)
 	{
 		unsigned int i;
 		printf("Time");
