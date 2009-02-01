@@ -19,6 +19,13 @@
 #include "environment.h"
 #include "simulation.h"
 
+/***********************************************/
+
+static double evaluate(struct environment *sc, const ASTNode *node)
+
+/***********************************************/
+
+
 /* Define to use the simple method to find the reaction */
 /*#define USE_SIMPLE*/
 
@@ -368,6 +375,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	unsigned int numParameters;
 	unsigned int numEvents;
 	unsigned int numCompartments;
+	unsigned int numInitialAssignments;
 	unsigned int i,j,k;
 
 	struct simulation_context *sc;
@@ -407,6 +415,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	numParameters = model->getNumParameters();
 	numEvents = model->getNumEvents();
 	numCompartments = model->getNumCompartments();
+	numInitialAssignments = model->getNumInitialAssignments();
 
 	value_first = NULL;
 
@@ -431,8 +440,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			goto bailout;
 		environment_set_value_double(v,c->getSize());
 	}
-
-
 
 	/* Gather species */
 	for (i=0;i<numSpecies;i++)
@@ -662,6 +669,27 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	sc->events[i] = ev;
 	}
 
+	/* Perform initial assignments */
+	for (i=0;i<numInitialAssignments;i++)
+	{
+		InitialAssignment *a = model->getInitialAssignment(i);
+		char *symbol = a->getSymbol().c_str();
+		struct value *v;
+
+		if (!(v = environment_get_value(&sc->global_env,symbol)))
+		{
+			fprintf(stderr,"An initial assignment refers to a non-existent variable \"%s\"",symbol);
+			goto bailout;
+		}
+
+		v->value = evaluate(&sc->global_env,a->getMath());
+		if (v->is_species)
+			v->molecules = (int)v->value;
+
+		if (verbose)
+			fprintf(err,"Value of \"%s\" changed to %g due to an initial assignment.\n",v->value);
+	}
+
 	if (verbose)
 	{
 		/* Print out ODEs */
@@ -716,6 +744,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		exit(-1);
 	}
 
+	/* Snapshot the environment so that it can be recovered later */
 	if (!(sc->init_snap = environment_snapshot(&sc->global_env)))
 	{
 		fprintf(stderr,"Couldn't create an environment snapshot!\n");
