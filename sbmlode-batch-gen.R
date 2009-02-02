@@ -45,6 +45,10 @@ for (name in basenames)
 	print(paste("Writing ",fn," (average of ",taken,")",sep=""))
 	write.table(avg,file=file.path(drawer,paste(name,".mean.txt",sep="")),row.names=T)
 
+	fn<-file.path(drawer,paste(name,".var.txt",sep=""))
+	print(paste("Writing ",fn," (average of ",taken,")",sep=""))
+	write.table(var,file=file.path(drawer,paste(name,".var.txt",sep="")),row.names=T)
+
 	if (length(avg$X)>0)
 	{
 		fn<-file.path(drawer,paste(name,".mean.pdf",sep=""))
@@ -75,6 +79,22 @@ for (name in basenames)
 			plot(avg$Time,var$P,type="l")
 			lines(avg$Time,var$P2,type="l")
 			dev.off()
+		} else
+		{
+			for (n in colnames(avg))
+			{
+				fn<-file.path(drawer,paste(name,"-",n,"-mean.pdf",sep=""))
+				print(paste("Writing",fn))
+				pdf(file=fn)
+				plot(avg$Time,avg[,n],type="l")
+				dev.off()
+
+				fn<-file.path(drawer,paste(name,"-",n,"-var.pdf",sep=""))
+				print(paste("Writing",fn))
+				pdf(file=fn)
+				plot(avg$Time,var[,n],type="l")
+				dev.off()
+			}
 		}
 	}
 }
