@@ -42,6 +42,9 @@ static int sample_steps;
 /** @brief Species if the result should be plotted */
 static int plot;
 
+struct variable_assignment *va_first;
+struct variable_assignment *va_last;
+
 /**
  * @brief Species the species to be considered in the plot
  *
@@ -73,19 +76,20 @@ static void usage(char *name)
 	fprintf(stderr, "usage: %s [OPTIONS] SBML-File ...\n"
 			"Loads the given SBML-File and performs a simulation run.\n"
 			"Specify '-' to read from stdin.\n"
-			"\t-h, --help               show this help and quit.\n"
-			"\t    --error              specifies the error (absolute and relative) given in double.\n"
-			"\t    --force-interpreted  forces the interpreted calculation of the rhs.\n"
-			"\t    --list-values        list all values.\n"
-			"\t    --maxtime            specifies the end time (defaults to 1).\n"
-			"\t    --output-time        outputs the current time (stderr).\n"
-			"\t    --plot [sp1,...,spn] plots the results using gnuplot. Optionally, you can specify\n"
-			"\t                         the species to be plotted.\n"
-			"\t    --runs               specifies the runs to be performed when in stochastic mode.\n"
-			"\t    --sample-steps       the number of sample steps (defaults to 5000).\n"
-			"\t    --stiff              use solver for stiff ODEs.\n"
-			"\t    --stochastic         apply stochastic simulation.\n"
-			"\t    --verbose            verbose output.\n",
+			"\t-h, --help                show this help and quit.\n"
+			"\t    --error               specifies the error (absolute and relative) given in double.\n"
+			"\t    --force-interpreted   forces the interpreted calculation of the rhs.\n"
+			"\t    --list-values         list all values.\n"
+			"\t    --maxtime             specifies the end time (defaults to 1).\n"
+			"\t    --output-time         outputs the current time (stderr).\n"
+			"\t    --plot [sp1,...,spn]  plots the results using gnuplot. Optionally, you can specify\n"
+			"\t                          the species to be plotted.\n"
+			"\t    --runs                specifies the runs to be performed when in stochastic mode.\n"
+			"\t    --sample-steps        the number of sample steps (defaults to 5000).\n"
+			"\t    --set-var \"name=dbl\"  set the given variable to double value.\n"
+			"\t    --stiff               use solver for stiff ODEs.\n"
+			"\t    --stochastic          apply stochastic simulation.\n"
+			"\t    --verbose             verbose output.\n",
 			name);
 
 	exit(1);
@@ -227,6 +231,54 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--output-time"))
 		{
 			output_time = 1;
+		} else if (!strcmp(argv[i],"--set-var"))
+		{
+			struct variable_assignment *sva;
+			double value;
+			char *nr_arg;
+			char *nend;
+			char *name;
+
+			if (argv[i][8]=='=')
+				nr_arg = &argv[i][9];
+			else
+			{
+				nr_arg = argv[i+1];
+				i++;
+				if (i>=argc)
+				{
+					fprintf(stderr,"The --set-var option needs an assignment.\n");
+					exit(-1);
+				}
+			}
+
+			if (!(nend = strchr(nr_arg,'=')))
+			{
+				fprintf(stderr,"The --set-var option needs an assignment of form \"name=dbl\".\n");
+				exit(-1);
+			}
+
+			if (!(name = (char*)malloc(nend-nr_arg)))
+			{
+				fprintf(stderr,"Not enough memory!");
+				exit(-1);
+			}
+
+			strncpy(name,nr_arg,nend-nr_arg);
+			value = strtod(nend+1, NULL);
+
+			if (!(sva = (struct variable_assignment*)malloc(sizeof(*sva))))
+			{
+				fprintf(stderr,"Not enough memory!");
+				exit(-1);
+			}
+
+			sva->value_name = name;
+			sva->value = value;
+
+			if (!va_first) va_first = sva;
+			else va_last->next = sva;
+			va_last = sva;
 		} else if (!strcmp(argv[i],"--stiff"))
 		{
 			stiff = 1;
@@ -314,7 +366,7 @@ static void parse_args(int argc, char *argv[])
 }
 
 /**
- * A single sample
+ * A single recorded sample
  */
 struct sample
 {
@@ -453,7 +505,7 @@ int main(int argc, char **argv)
 
 	parse_args(argc, argv);
 
-	if (!(sc = simulation_context_create_from_sbml_file(model_filename)))
+	if (!(sc = simulation_context_create_from_sbml_file(model_filename,va_first)))
 		goto bailout;
 
 	names = simulation_get_value_names(sc);

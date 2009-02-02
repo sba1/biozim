@@ -22,20 +22,32 @@ struct integration_settings
 	/* As above, but for string variables. The calling of both functions is synced */
 	int (*sample_str_func)(double time, int num_strings, char **values);
 
-	/* If set, the interpeted evaluation of the right-hand side is performed */
+	/* If set, the interpreted evaluation of the right-hand side is performed */
 	int force_interpreted;
 
-	/* Use integerator for stiff systems */
+	/* Use integrator for stiff systems */
 	int stiff;
 
 	/* Use stochastic simulator */
 	int stochastic;
 };
 
+/**
+ * Thats a single variable assignment.
+ */
+struct variable_assignment
+{
+	char *value_name;
+	double value;
+
+	struct variable_assignment *next;
+};
+
 void integration_settings_init(struct integration_settings *settings);
 
-struct simulation_context *simulation_context_create_from_sbml_file(const char *filename);
+struct simulation_context *simulation_context_create_from_sbml_file(const char *filename, struct variable_assignment *assignment);
 void simulation_context_reset(struct simulation_context *sc);
+void simulation_context_set_value(const char *name, double value);
 void simulation_context_query_values(struct simulation_context *sc, int (*callback)(struct value *), void *userdata);
 const char ** simulation_get_value_names(struct simulation_context *sc);
 void simulation_integrate(struct simulation_context *sc, struct integration_settings *settings);

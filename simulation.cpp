@@ -361,10 +361,12 @@ int get_AST_integer_value(ASTNode *node)
  * Create the simulation context from an SBML file.
  *
  * @param filename
+ * @param assignment a single linked list describing some variable assignments that are applied
+ *        before the initial assignments of the SBML file.
  * @return the context to be freed with simulation_context_free or
  *         NULL on failure.
  */
-struct simulation_context *simulation_context_create_from_sbml_file(const char *filename)
+struct simulation_context *simulation_context_create_from_sbml_file(const char *filename, struct variable_assignment *assignment)
 {
 	SBMLParser *parser = NULL;
 	SBMLDocument *doc;
@@ -576,7 +578,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			}
 		}
 
-		/* Add products (increase the species' concentration */
+		/* Add products (increase the species' concentration) */
 		for (j=0;j<numProducts;j++)
 		{
 			struct value *ref_v;
@@ -669,6 +671,26 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	sc->events[i] = ev;
 	}
 
+	/* Perform given assignments */
+	while (assignment)
+	{
+		struct value *v;
+		if (!(v = environment_get_value(&sc->global_env,assignment->value_name)))
+		{
+			fprintf(stderr,"An assignment refers to a non-existent variable \"%s\"\n",assignment->value_name);
+			goto bailout;
+		}
+
+		v->value = assignment->value;
+		if (v->is_species)
+			v->molecules = assignment->value;
+
+		if (verbose)
+			fprintf(stderr,"Value of \"%s\" changed to %g due to an custom assignment.\n",v->name,v->value);
+
+		assignment = assignment->next;
+	}
+
 	/* Perform initial assignments */
 	for (i=0;i<numInitialAssignments;i++)
 	{
@@ -687,7 +709,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			v->molecules = (int)v->value;
 
 		if (verbose)
-			fprintf(stderr,"Value of \"%s\" changed to %g due to an initial assignment.\n",v->value);
+			fprintf(stderr,"Value of \"%s\" changed to %g due to an initial assignment.\n",v->name,v->value);
 	}
 
 	if (verbose)
