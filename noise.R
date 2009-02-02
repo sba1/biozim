@@ -1,3 +1,5 @@
+library(cairoDevice)
+
 ############################################################
 # Create a data frame from a tab-separated character vector 
 create.frame <- function(result.raw)
@@ -36,7 +38,7 @@ gP<-log(2)/3600
 kP<-burst * gR
 
 # simulate and sort data according to time
-result<-sbml.sim("data/stochastic/noise/singlegene.xml",40000,stochastic=T,runs=2500,sample.steps=200,
+result<-sbml.sim("data/stochastic/noise/singlegene.xml",40000,stochastic=T,runs=1000,sample.steps=250,
 							params=c(paste("degradation_G",gP,sep="="),
 									 paste("degradation_moG",gR,sep="="),
 					                 paste("transcription_oG0",kR,sep="="),
@@ -51,8 +53,15 @@ min.max.frame<-data.frame(min=c(1,cs[-length(cs)]+1),max=cs)
 # create statistics for every group
 m<-data.frame(t(apply(min.max.frame,1,function(x){ mean(result[seq(x[1],x[2]),]) })))
 s<-data.frame(t(apply(min.max.frame,1,function(x){ sd(result[seq(x[1],x[2]),]) })))
+co<-s/m # coefficient of variation
+fano<-(s*s)/m
 
-plot(m$Time,m$G,type="l")
+par(mfrow=c(2, 2))
+
+plot(m$Time,m$G,xlab="Time",type="l",main=sprintf("Protein counts for G with b=%d",burst))
+plot(m$Time,s$G,xlab="Time",type="l",main=sprintf("Standard deviation G with b=%d",burst))
+plot(m$Time,co$G,xlab="Time",type="l",main=sprintf("Cooefficient of variation for G with b=%d",burst))
+plot(m$Time,fano$G,xlab="Time",type="l",main=sprintf("Fano factor for G with b=%d",burst))
 
 #apply(min.max.frame[c(1,2),],1,function(x){ mean(result[seq(x[1],x[2]),]) })
 # clumsy loop
