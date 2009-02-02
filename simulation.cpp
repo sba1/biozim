@@ -16,12 +16,12 @@
 #include "sbml/SBMLParser.h"
 #include "ode/ODESettings.h"
 
-#include "environment.h"
 #include "simulation.h"
+#include "environment.h"
 
 /***********************************************/
 
-static double evaluate(struct environment *sc, const ASTNode *node)
+static double evaluate(struct environment *sc, const ASTNode *node);
 
 /***********************************************/
 
@@ -673,7 +673,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	for (i=0;i<numInitialAssignments;i++)
 	{
 		InitialAssignment *a = model->getInitialAssignment(i);
-		char *symbol = a->getSymbol().c_str();
+		const char *symbol = a->getSymbol().c_str();
 		struct value *v;
 
 		if (!(v = environment_get_value(&sc->global_env,symbol)))
@@ -687,7 +687,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			v->molecules = (int)v->value;
 
 		if (verbose)
-			fprintf(err,"Value of \"%s\" changed to %g due to an initial assignment.\n",v->value);
+			fprintf(stderr,"Value of \"%s\" changed to %g due to an initial assignment.\n",v->value);
 	}
 
 	if (verbose)
