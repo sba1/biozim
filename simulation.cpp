@@ -166,7 +166,11 @@ static int environment_add_parameter(struct environment *env, Parameter *p)
 	if ((v = environment_add_value(env,name)))
 	{
 		v->fixed = 1;
-		environment_set_value_double(v,p->getValue());
+
+		if (p->isSetValue())
+			environment_set_value_double(v,p->getValue());
+		else
+			v->uninitialized = 1;
 		return 1;
 	}
 
@@ -521,11 +525,14 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			if (!(v = environment_add_value(&sc->global_env,new_id)))
 				goto bailout;
 			v->fixed = 1;
-			environment_set_value_double(v,p->getValue());
+
+			if (p->isSetValue())
+				environment_set_value_double(v,p->getValue());
+			else
+				v->uninitialized = 1;
 
 			formula->ReplaceArgument(p->getId(),new_param);
 		}
-
 
 		/* Rewrite formulas according to the has_only_substance_units tag */
 		for (j=0;j<numReactants;j++)
@@ -654,7 +661,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 		}
 	 	}
 
-
 	 	ev->num_assignments = numEventAssignments;
 	 	ev->trigger = e->getTrigger()->getMath()->deepCopy();
 
@@ -682,6 +688,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		}
 
 		v->value = assignment->value;
+		v->uninitialized = 0;
 		if (v->is_species)
 			v->molecules = assignment->value;
 
@@ -690,7 +697,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 		assignment = assignment->next;
 	}
-
 	/* Perform initial assignments */
 	for (i=0;i<numInitialAssignments;i++)
 	{
@@ -704,6 +710,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			goto bailout;
 		}
 
+		v->uninitialized = 0;
 		v->value = evaluate(&sc->global_env,a->getMath());
 		if (v->is_species)
 			v->molecules = (int)v->value;
@@ -795,9 +802,14 @@ static double evaluate(struct environment *sc, const ASTNode *node)
 {
 //	printf("%p type=%d isOper=%d isNumber=%d\n",node,node->getType(),node->isOperator(),node->isNumber());
 
+	if (!node)
+	{
+//		fprintf(stderr,"***Warning: evaluate() called with NULL pointer\n");
+//		return 0.0;
+	}
+
 	switch (node->getType())
 	{
-
 		case	AST_PLUS: return evaluate(sc, node->getLeftChild()) + evaluate(sc, node->getRightChild());
 		case	AST_MINUS:  return evaluate(sc, node->getLeftChild()) - evaluate(sc, node->getRightChild());
 		case	AST_TIMES: return evaluate(sc, node->getLeftChild()) * evaluate(sc, node->getRightChild());
