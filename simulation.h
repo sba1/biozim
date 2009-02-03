@@ -30,6 +30,8 @@ struct integration_settings
 
 	/* Use stochastic simulator */
 	int stochastic;
+
+	unsigned int seed;
 };
 
 /**

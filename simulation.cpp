@@ -27,13 +27,13 @@ static double evaluate(struct environment *sc, const ASTNode *node);
 
 
 /* Define to use the simple method to find the reaction */
-/*#define USE_SIMPLE*/
+#define USE_SIMPLE
 
 /* Define to use the cum sum method to find the reaction */
 /*#define USE_CUMSUM*/
 
 /* Define to use the quick method to find the reaction */
-#define USE_QUICK
+/*#define USE_QUICK*/
 
 /***********************************************/
 
@@ -177,9 +177,13 @@ static int environment_add_parameter(struct environment *env, Parameter *p)
 	return 0;
 }
 
-/*****************************************************
- Add a new species to the
-******************************************************/
+/**
+ * Add a new species to the simulation.
+ *
+ * @param sc
+ * @param s
+ * @return
+ */
 static struct value *simulation_context_add_species(struct simulation_context *sc, Species *s)
 {
 	char *name;
@@ -251,10 +255,13 @@ static int simulation_context_add_affected(struct simulation_context *sc, const 
 
 /***********************************************/
 
-/*****************************************************
- Gets an AST of the stoichiometry factor given
- species reference.
-******************************************************/
+/**
+ * Gets an AST of the stoichiometry factor given
+ * species reference. May create an own AST.
+ *
+ * @param ref
+ * @return
+ */
 static ASTNode *get_stoichiometry_ast(const SpeciesReference *ref)
 {
 	const struct StoichiometryMath *stoichMath = ref->getStoichiometryMath();
@@ -953,10 +960,16 @@ static void print(struct environment *sc, const ASTNode *node)
 	}
 }
 
-/*********************************************************
- The right hand side of the ODEs (uses dynamical loaded
- function)
-**********************************************************/
+/**
+ * The right hand side of the ODEs. This uses the dynamically loaded
+ * function.
+ *
+ * @param t
+ * @param y
+ * @param ydot
+ * @param f_data
+ * @return
+ */
 static int dlf(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 {
 	unsigned int i;
@@ -977,9 +990,15 @@ static int dlf(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 	return 0;
 }
 
-/*********************************************************
- The right hand side of the ODEs
-**********************************************************/
+/**
+ * The right hand side of the ODEs.
+ *
+ * @param t
+ * @param y
+ * @param ydot
+ * @param f_data
+ * @return
+ */
 static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 {
 	unsigned int i;
@@ -1019,12 +1038,15 @@ static int f(realtype t, N_Vector y, N_Vector ydot, void *f_data)
 	return 0;
 }
 
-/**********************************************************
- Returns an NULL-terminated array with names of the
- variables. Memory is freed upon simulation_context_free()
- call. This will not only return the names of the values
- of type double but also of type char *.
-***********************************************************/
+/**
+ * Returns an NULL-terminated array with names of the
+ * variables. Memory is freed upon simulation_context_free()
+ * call. This will not only return the names of the values
+ * of type double but also of type char *.
+ *
+ * @param sc
+ * @return
+ */
 const char **simulation_get_value_names(struct simulation_context *sc)
 {
 	int num_names;
@@ -1044,10 +1066,13 @@ const char **simulation_get_value_names(struct simulation_context *sc)
 	return sc->names;
 }
 
-/**********************************************************
- Compiles the rhs function.
-***********************************************************/
-static int simulation_context_prepare_jit(struct simulation_context *sc)
+/**
+ * Creates, compiles and links the rhs function.
+ *
+ * @param sc
+ * @return
+ */
+static int simulation_context_det_prepare_jit(struct simulation_context *sc)
 {
 	unsigned int i;
 	const char *filename = "test.c";
@@ -1242,10 +1267,11 @@ bailout:
 	return 0;
 }
 
-/**********************************************************
- Frees all resources allocated
-***********************************************************/
-static void simulation_context_finish_jit(struct simulation_context *sc)
+/**
+ * Frees all resources allocated during simulation_context_det_prepare_jit().
+ * @param sc
+ */
+static void simulation_context_det_finish_jit(struct simulation_context *sc)
 {
 	if (sc->dlhandle)
 	{
@@ -1333,9 +1359,12 @@ uint64_t binomial(int N, int K)
 	return binomial[N][K];
 }
 
-/**********************************************************
- Integrates the simulation using stochastic simulator
-***********************************************************/
+/**
+ * Integrates the simulation using stochastic simulator.
+ *
+ * @param sc
+ * @param settings
+ */
 void simulation_integrate_stochastic(struct simulation_context *sc, struct integration_settings *settings)
 {
 	double t;
@@ -1351,19 +1380,6 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 
 	sc->sample_func = settings->sample_func;
 	sc->sample_str_func = settings->sample_str_func;
-
-	{
-		unsigned int seed=0x278378;
-
-		FILE *urand = fopen("/dev/urandom","rb");
-		if (urand)
-		{
-			fread(&seed,1,sizeof(seed),urand);
-			fclose(urand);
-		} else seed = time(NULL) + clock();
-
-		srandom(seed);
-	}
 
 	t = 0;
 	tcb = 0;
@@ -1400,10 +1416,11 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 //				h_c *= binomial(ref->value->molecules,evaluate(&sc->global_env,ref->stoich));
 //			}
 
+//printf("h->a(old)=%g ",r->a);
 			r->h = h_c;
 			r->c = evaluate(&sc->global_env, r->formula);
 			r->a = r->h * r->c;
-
+//printf("h->a(old)=%g\n",r->a);
 //			printf("r%d: h_c=%lf c=%lf a=%lf  %s\n",i,h_c,r->c,r->a, SBML_formulaToString(r->formula));
 
 			a_all += r->a;
@@ -1527,6 +1544,8 @@ static void simulation_write_propensity_calculation(FILE *out, struct simulation
 	fprintf(out,"\t\tdouble h_c = 1.0;\n");
 
 	/* Calculate h_c */
+	/* Commented out as this should already be contained in the reaction law */
+#if 0
 	for (unsigned j=0;j<r->num_reactants;j++)
 	{
 		struct reference *ref = &r->reactants[j];
@@ -1551,6 +1570,7 @@ static void simulation_write_propensity_calculation(FILE *out, struct simulation
 					break;
 		}
 	}
+#endif
 
 #ifdef USE_QUICK
 	if (delta)
@@ -1599,7 +1619,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 		return;
 	memset(stoich_mat,0,sc->num_reactions * stoich_mat_cols * sizeof(unsigned int));
 
-	/* Build up boolean stoich_mat indicating which species are affected by which reaction */
+	/* Build up integer stoich_mat indicating which species are affected by which reaction */
 	for (i=0;i<sc->num_reactions;i++)
 	{
 		struct reaction *r = &sc->reactions[i];
@@ -1620,7 +1640,6 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	/* Build a sparse array containing the indicies of reactions where the species contribute to */
 	unsigned int pos;
 
-	/* TODO: Rename to species_participating_as_reactants_in_which_reactions */
 	int *species_participating_in_which_reactions_flat;
 	int *species_participating_in_which_reactions[sc->global_env.num_values];
 
@@ -1640,7 +1659,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 		for (i=0;i<sc->num_reactions;i++)
 		{
-			if (stoich_mat[i*stoich_mat_cols + j]<0)
+			if (stoich_mat[i*stoich_mat_cols + j]!=0)
 				this_species_participating_in_which_reactions[k++] = i;
 		}
 
@@ -1686,7 +1705,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\tdouble t=0;\n");
 	fprintf(out,"\tdouble tdelta = tmax / steps;\n");
 	fprintf(out,"\tdouble tcb = 0;\n");
-	fprintf(out,"\tsrandom(10);\n");
+	fprintf(out,"\tdouble tcb1 = 0;\n");
 #ifdef USE_CUMSUM
 	fprintf(out,"\tdouble acum[%d];\n",sc->num_reactions);
 #endif
@@ -1717,7 +1736,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	{
 		if (sc->global_env.values[i]->is_species)
 		{
-			fprintf(out,"\t#define %s molecules[%d]\n",sc->global_env.values[i]->name,i);
+			fprintf(out,"#define %s molecules[%d]\n",sc->global_env.values[i]->name,i);
 			fprintf(out,"\t%s=%d;\n",sc->global_env.values[i]->name,sc->global_env.values[i]->molecules);
 		}
 	}
@@ -1760,6 +1779,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	for (i=0;i<sc->num_reactions;i++)
 		fprintf(out," + a[%d]",i);
 	fprintf(out,";\n");
+
 #endif
 
 	/** Third step: Draw random numbers **/
@@ -1772,6 +1792,8 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\tdouble ar = r2*a_all;\n");
 	fprintf(out,"\t\tdouble tau = (1.0/a_all) * log(1.0/r1);\n");
 #endif
+
+//fputs("printf(\"a_all=%g r1=%g r2=%g\\n\",a_all,r1,r2);\n",out);
 
 	/** Fourth step: Find the fired reaction **/
 #ifdef USE_SIMPLE
@@ -1892,11 +1914,27 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 	fprintf(out,"\t\tt += tau;\n");
 	fprintf(out,"\t\ttcb += tau;\n");
-	fprintf(out,"\t\tif (tcb > tdelta)\n");
+	fprintf(out,"\t\twhile (tcb > tdelta)\n");
 	fprintf(out,"\t\t{\n");
-	fprintf(out,"\t\t\tif (callback) callback(t,molecules,userdata);\n");
 	fprintf(out,"\t\t\ttcb -= tdelta;\n");
+	fprintf(out,"\t\t\ttcb1 += tdelta;\n");
+	fprintf(out,"\t\t\tif (tcb1 >= tmax) break;\n");
+	fprintf(out,"\t\t\tif (callback) callback(tcb1,molecules,userdata);\n");
+//	fprintf(out,"\t\t\ttcb -= tdelta;\n");
 	fprintf(out,"\t\t}\n");
+
+//	tcb += tau;
+//	while (tcb > tdelta)
+//	{
+//		tcb -= tdelta;
+//		tcb1 += tdelta;
+//		if (tcb1 >= tmax) break;
+//
+//		if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
+//		if (sc->sample_str_func) sc->sample_str_func(tcb1,0,NULL);
+//	}
+
+
 
 	fprintf(out,"\t}\n");
 	fprintf(out,"}\n");
@@ -1934,6 +1972,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 			}
 
 			dlclose(handle);
+			return;
 		}
 	}
 
@@ -2108,6 +2147,21 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 {
 	if (settings->stochastic)
 	{
+		/* Do the seed stuff */
+		{
+			unsigned int seed=0x278378;
+
+			/* TODO: Add proper seed support */
+			FILE *urand = fopen("/dev/urandom","rb");
+			if (urand)
+			{
+				fread(&seed,1,sizeof(seed),urand);
+				fclose(urand);
+			} else seed = time(NULL) + clock();
+
+			srandom(seed);
+		}
+
 		simulation_integrate_stochastic(sc, settings);
 		return;
 	}
@@ -2179,7 +2233,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	for (i=0;i<num_unfixed;i++)
 		NV_Ith_S(initial,i) = unfixed[i]->value;
 
-	if (!settings->force_interpreted && simulation_context_prepare_jit(sc))
+	if (!settings->force_interpreted && simulation_context_det_prepare_jit(sc))
 	{
 		if (verbose) fprintf(stderr,"Using compiled right-hand side function\n");
 		rhs = dlf;
@@ -2268,7 +2322,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	}
 
 out:
-	simulation_context_finish_jit(sc);
+	simulation_context_det_finish_jit(sc);
 
 	/* Cleanup */
 	if (yout) N_VDestroy_Serial(yout);
@@ -2307,7 +2361,7 @@ void simulation_context_free(struct simulation_context *sc)
 	}
 	free(sc->events_active);
 
-	simulation_context_finish_jit(sc);
+	simulation_context_det_finish_jit(sc);
 
 	if (sc->names)
 		free(sc->names);

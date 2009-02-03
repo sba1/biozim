@@ -24,6 +24,9 @@ static int stiff;
 /** @brief Perform stochastic simulation */
 static int stochastic;
 
+/** @brief The seed to be used */
+static int seed;
+
 /** @brief Print time to stderr */
 static int output_time;
 
@@ -86,6 +89,7 @@ static void usage(char *name)
 			"\t                          the species to be plotted.\n"
 			"\t    --runs                specifies the runs to be performed when in stochastic mode.\n"
 			"\t    --sample-steps        the number of sample steps (defaults to 5000).\n"
+			"\t    --seed                specifies the seed to be used for stochastic simulation.\n"
 			"\t    --set-var \"name=dbl\"  set the given variable to double value.\n"
 			"\t    --stiff               use solver for stiff ODEs.\n"
 			"\t    --stochastic          apply stochastic simulation.\n"
@@ -193,6 +197,23 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--force-interpreted"))
 		{
 			no_jit = 1;
+		} else if (!strcmp(argv[i],"--seed"))
+		{
+			char *nr_arg;
+
+			if (argv[i][6]=='=')
+				nr_arg = &argv[i][7];
+			else
+			{
+				nr_arg = argv[++i];
+				if (i>=argc)
+				{
+					fprintf(stderr,"The --seed option needs an integer argument.\n");
+					exit(-1);
+				}
+			}
+
+			seed = strtol(nr_arg,NULL,10);
 		} else if (!strcmp(argv[i],"--runs"))
 		{
 			char *nr_arg;
@@ -540,6 +561,7 @@ int main(int argc, char **argv)
 	settings.force_interpreted = no_jit;
 	settings.stochastic = stochastic;
 	settings.stiff = stiff;
+	settings.seed = seed;
 
 	if (runs > 1 && !stochastic)
 	{
