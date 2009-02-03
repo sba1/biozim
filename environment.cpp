@@ -34,12 +34,20 @@ struct value *environment_get_value(const struct environment *env, const char *n
 }
 
 /*****************************************************
- Returns the value of a varibale by its name.
+ Returns the value of a variable by its name.
 ******************************************************/
 double environment_get_value_by_name(const struct environment *env, const char *name)
 {
 	struct value *v = environment_get_value(env, name);
-	if (v) return v->value;
+	if (v)
+	{
+		if (v->uninitialized)
+		{
+			fprintf(stderr,"***Warning***: Accessing an uninitialized variable \"%s\"!\n",name);
+			return 0.0;
+		}
+		return v->value;
+	}
 	fprintf(stderr,"***Warning***: Symbol \"%s\" not found! Defaulting to 0.0\n",name);
 	return 0.0;
 }
@@ -86,7 +94,7 @@ struct value *environment_add_value(struct environment *env, const char *name)
 
 	if (environment_is_value_defined(env,name))
 	{
-		fprintf(stderr,"Value \"%s\" is already defined!\n",name);
+		fprintf(stderr,"***Warning***: Value \"%s\" is already defined!\n",name);
 		return NULL;
 	}
 

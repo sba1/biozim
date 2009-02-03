@@ -20,7 +20,11 @@ struct value
 	/* Contains the index in the environment */
 	int index;
 
+	/* Variable represents a species */
 	int is_species;
+
+	/* Variable is uninitialized */
+	int uninitialized;
 
 	int has_only_substance_units;
 	struct value *compartment_value;
