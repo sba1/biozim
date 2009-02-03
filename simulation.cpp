@@ -1520,7 +1520,10 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
 	sc = (struct simulation_context*)userdata;
 
 	for (i=0;i<sc->global_env.num_values;i++)
-		sc->value_space[i] = states[i];
+	{
+		if (sc->global_env.values[i]->is_species)
+			sc->value_space[i] = states[i];
+	}
 
 	sc = (struct simulation_context *)userdata;
 
@@ -1614,6 +1617,9 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
 		return;
+
+	for (i=0;i<sc->global_env.num_values;i++)
+		sc->value_space[i] = sc->global_env.values[i]->value;
 
 	if (!(stoich_mat = (int*)malloc(sc->num_reactions * stoich_mat_cols * sizeof(unsigned int))))
 		return;
@@ -1779,7 +1785,7 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	for (i=0;i<sc->num_reactions;i++)
 		fprintf(out," + a[%d]",i);
 	fprintf(out,";\n");
-
+	fprintf(out,"if (a_all == 0) break;\n");
 #endif
 
 	/** Third step: Draw random numbers **/
@@ -1923,19 +1929,13 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 //	fprintf(out,"\t\t\ttcb -= tdelta;\n");
 	fprintf(out,"\t\t}\n");
 
-//	tcb += tau;
-//	while (tcb > tdelta)
-//	{
-//		tcb -= tdelta;
-//		tcb1 += tdelta;
-//		if (tcb1 >= tmax) break;
-//
-//		if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
-//		if (sc->sample_str_func) sc->sample_str_func(tcb1,0,NULL);
-//	}
+	fprintf(out,"\t}\n");
 
-
-
+	fprintf(out,"\twhile (t < tmax)\n");
+	fprintf(out,"\t{\n");
+	fprintf(out,"\t\tt += tdelta;\n");
+	fprintf(out,"\t\ttcb1 += tdelta;\n");
+	fprintf(out,"\t\tif (callback) callback(tcb1,molecules,userdata);\n");
 	fprintf(out,"\t}\n");
 	fprintf(out,"}\n");
 
@@ -2162,7 +2162,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 			srandom(seed);
 		}
 
-		simulation_integrate_stochastic(sc, settings);
+		simulation_integrate_stochastic_quick(sc, settings);
 		return;
 	}
 
