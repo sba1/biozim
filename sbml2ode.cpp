@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* Own headers */
 #include "simulation.h"
@@ -24,8 +25,11 @@ static int stiff;
 /** @brief Perform stochastic simulation */
 static int stochastic;
 
+/** @brief The seed was supplied by the user */
+static unsigned int user_seed;
+
 /** @brief The seed to be used */
-static int seed;
+static unsigned int seed;
 
 /** @brief Print time to stderr */
 static int output_time;
@@ -214,6 +218,7 @@ static void parse_args(int argc, char *argv[])
 			}
 
 			seed = strtol(nr_arg,NULL,10);
+			user_seed = 1;
 		} else if (!strcmp(argv[i],"--runs"))
 		{
 			char *nr_arg;
@@ -561,7 +566,24 @@ int main(int argc, char **argv)
 	settings.force_interpreted = no_jit;
 	settings.stochastic = stochastic;
 	settings.stiff = stiff;
-	settings.seed = seed;
+
+	/* Do the seed stuff */
+	if (user_seed)
+	{
+		settings.seed = seed;
+	} else
+	{
+		unsigned int seed;
+
+		FILE *urand = fopen("/dev/urandom","rb");
+		if (urand)
+		{
+			fread(&seed,1,sizeof(seed),urand);
+			fclose(urand);
+		} else seed = time(NULL) + clock();
+
+		settings.seed = seed;
+	}
 
 	if (runs > 1 && !stochastic)
 	{

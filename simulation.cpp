@@ -2147,21 +2147,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 {
 	if (settings->stochastic)
 	{
-		/* Do the seed stuff */
-		{
-			unsigned int seed=0x278378;
-
-			/* TODO: Add proper seed support */
-			FILE *urand = fopen("/dev/urandom","rb");
-			if (urand)
-			{
-				fread(&seed,1,sizeof(seed),urand);
-				fclose(urand);
-			} else seed = time(NULL) + clock();
-
-			srandom(seed);
-		}
-
+		srandom(settings->seed);
 		simulation_integrate_stochastic_quick(sc, settings);
 		return;
 	}
