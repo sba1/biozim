@@ -57,9 +57,12 @@ struct simulation_context
 	/* Valid during stochastic integration. Value space */
 	double *value_space;
 
-	/* Valid during stochastic integration. The sampling function. It is called for every sampled time point */
+	/* The sampling function. It is called for every sampled time point */
 	int (*sample_func)(double time, int num_values, double *values);
 	int (*sample_str_func)(double time, int num_strings, char **values);
+
+	/* The seed has been used */
+	int used_seed;
 
 	/* Contains indices to values which don't have an ODE attached */
 	struct value **fixed;
@@ -89,8 +92,10 @@ struct simulation_context
 
 	/* Dynamic loading support */
 	void *dlhandle;
+
 	int (*dlrhs)(double t, double *y, double *ydot, void *f_data);
 	int (*dlcheck_trigger)(double t, double *y, int *events_active);
+	double (*dlgillespie)(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata);
 
 	char **knocked_out_ptr;
 
@@ -1589,10 +1594,17 @@ static void simulation_write_propensity_calculation(FILE *out, struct simulation
 
 }
 
-/**********************************************************
- Integrates the simulation using stochastic simulator
-***********************************************************/
-void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct integration_settings *settings)
+/**
+ * Integrates the simulation using stochastic simulator.
+ *
+ * @param sc
+ * @param settings
+ * @param gen_jit specifies whether a compiled function should be generated or not.
+ *  In this case the simulation is not executed.
+ *
+ * @return whether successful or not
+ */
+int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct integration_settings *settings, int gen_jit)
 {
 	unsigned int i,j;
 
@@ -1616,13 +1628,17 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	sc->sample_str_func = settings->sample_str_func;
 
 	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
-		return;
+		return 0;
 
 	for (i=0;i<sc->global_env.num_values;i++)
 		sc->value_space[i] = sc->global_env.values[i]->value;
 
 	if (!(stoich_mat = (int*)malloc(sc->num_reactions * stoich_mat_cols * sizeof(unsigned int))))
-		return;
+	{
+		free(sc->value_space);
+		sc->value_space = NULL;
+		return 0;
+	}
 	memset(stoich_mat,0,sc->num_reactions * stoich_mat_cols * sizeof(unsigned int));
 
 	/* Build up integer stoich_mat indicating which species are affected by which reaction */
@@ -1685,7 +1701,9 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	if (!(out = fopen(filename,"w")))
 	{
 		fprintf(stderr,"Unable to open \"%s\" for output.\n",filename);
-		return;
+		free(sc->value_space);
+		sc->value_space = NULL;
+		return 0;
 	}
 
 #define child1(i) (2*(i)+1)
@@ -1798,8 +1816,6 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\tdouble ar = r2*a_all;\n");
 	fprintf(out,"\t\tdouble tau = (1.0/a_all) * log(1.0/r1);\n");
 #endif
-
-//fputs("printf(\"a_all=%g r1=%g r2=%g\\n\",a_all,r1,r2);\n",out);
 
 	/** Fourth step: Find the fired reaction **/
 #ifdef USE_SIMPLE
@@ -1926,7 +1942,6 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	fprintf(out,"\t\t\ttcb1 += tdelta;\n");
 	fprintf(out,"\t\t\tif (tcb1 >= tmax) break;\n");
 	fprintf(out,"\t\t\tif (callback) callback(tcb1,molecules,userdata);\n");
-//	fprintf(out,"\t\t\ttcb -= tdelta;\n");
 	fprintf(out,"\t\t}\n");
 
 	fprintf(out,"\t}\n");
@@ -1943,38 +1958,42 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 
 	/**************************************************************/
 
-	/* Now compile and execute the stuff */
+	/* Now compile and bind the stuff */
 	char *command;
 	int rc;
 
 	if (!(command = (char*)malloc(500)))
-		return;
+	{
+		free(sc->value_space);
+		sc->value_space = NULL;
+		return 0;
+	}
 
 	snprintf(command,500,"gcc -O3 -fPIC -shared test2.c -o test2.so");
 	fprintf(stderr,"%s\n",command);
 
 	if (!(rc = system(command)))
 	{
-		void *handle = dlopen("./test2.so",RTLD_NOW);
-		if (handle)
+		if ((sc->dlhandle = dlopen("./test2.so",RTLD_NOW)))
 		{
-			double (*gillespie)(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata);
-
-			gillespie = (double (*)(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata))dlsym(handle,"gillespie");
+			sc->dlgillespie = (double (*)(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata))dlsym(sc->dlhandle,"gillespie");
 			if (!(dlerror()))
 			{
-				gillespie(settings->time, settings->steps, gillespie_jit_callback, sc);
-				dlclose(handle);
-				return;
+				return 1;
 			} else
 			{
 				fprintf(stderr,"Could not found gillespie() function.\n");
 			}
 
-			dlclose(handle);
-			return;
+			dlclose(sc->dlhandle);
+			sc->dlhandle = NULL;
+			free(sc->value_space);
+			sc->value_space = NULL;
+			return 0;
 		}
 	}
+
+	if (gen_jit) return 0;
 
 	/**************************************************************/
 
@@ -2126,6 +2145,8 @@ void simulation_integrate_stochastic_quick(struct simulation_context *sc, struct
 	}
 	free(sc->value_space);
 	sc->value_space = NULL;
+
+	return 1;
 }
 
 /**
@@ -2147,8 +2168,21 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 {
 	if (settings->stochastic)
 	{
-		srandom(settings->seed);
-		simulation_integrate_stochastic_quick(sc, settings);
+		if (!sc->used_seed)
+		{
+			srandom(settings->seed);
+			sc->used_seed = 1;
+		}
+
+		if (!sc->dlgillespie && !settings->force_interpreted)
+			simulation_integrate_stochastic_quick(sc, settings, 1);
+		if (sc->dlgillespie)
+		{
+			sc->dlgillespie(settings->time, settings->steps, gillespie_jit_callback, sc);
+		} else
+		{
+			simulation_integrate_stochastic(sc, settings);
+		}
 		return;
 	}
 
@@ -2349,20 +2383,12 @@ void simulation_context_free(struct simulation_context *sc)
 
 	simulation_context_det_finish_jit(sc);
 
-	if (sc->names)
-		free(sc->names);
-
-	if (sc->unfixed)
-		free(sc->unfixed);
-
-	if (sc->fixed)
-		free(sc->fixed);
-
-	if (sc->dly)
-		free(sc->dly);
-
-	if (sc->dlydot)
-		free(sc->dlydot);
+	free(sc->value_space);
+	free(sc->names);
+	free(sc->unfixed);
+	free(sc->fixed);
+	free(sc->dly);
+	free(sc->dlydot);
 
 	if (sc->dlhandle)
 		dlclose(sc->dlhandle);
