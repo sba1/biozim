@@ -1,22 +1,45 @@
+/*#define HAVE_CMPH_H*/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
+#ifdef HAVE_CMPH_H
+#include <cmph.h>
+#endif
+
 #include "environment.h"
 
-/*****************************************************
- Initializes the environment
-******************************************************/
+/**
+ * Initializes the environment.
+ *
+ * @param env the environment to be initialized.
+ * @param parent the parent environment or NULL.
+ */
 void environment_init(struct environment *env, struct environment *parent)
 {
 	memset(env,0,sizeof(*env));
 	env->parent = parent;
 }
 
-/*****************************************************
- Returns the reference to the value or NULL, if
- doesn't exist.
-******************************************************/
+/**
+ * Optimize the environment for quick accesses. You should
+ * call this function when you are read with adding variables.
+ *
+ * @param env the environment to be optimized.
+ */
+void environment_optimize(struct environment *env)
+{
+}
+
+/**
+ * Returns the reference to the value or NULL, if
+ * doesn't exist.
+ *
+ * @param env the environment in which name should be looked up.
+ * @param name
+ * @return
+ */
 struct value *environment_get_value(const struct environment *env, const char *name)
 {
 	unsigned int i;

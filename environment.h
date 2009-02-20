@@ -59,6 +59,7 @@ struct environment_snapshot
 #define environment_set_value_double(v,d) ((struct value*)v)->value = d
 
 void environment_init(struct environment *env, struct environment *parent);
+void environment_optimize(struct environment *env);
 struct environment_snapshot *environment_snapshot(struct environment *env);
 void environment_set_to_snapshot(struct environment *env, struct environment_snapshot *snap);
 void environment_free_snapshot(struct environment_snapshot *snap);
