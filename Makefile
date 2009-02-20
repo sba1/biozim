@@ -9,14 +9,14 @@ SBML_OBJS = sbml/SBMLParser.o
 OBJS = $(SBML_OBJS) $(ODE_OBJS) \
 	environment.o \
 	gnuplot_i.o \
-	sbml2ode.o \
+	biozim.o \
 	simulation.o
 
 
 LIBS = -L /home/sba/local/lib -lsundials_cvode -lsundials_nvecserial -lsbml -lm -lstdc++
 INC = -I . -I /home/sba/local/include
 
-TARGET =	sbml2ode
+TARGET =	biozim
 
 %.o: %.c
 	$(CC) $(CCFLAGS) $(INC) -c $< -o $@

@@ -419,12 +419,14 @@ static int samples_total;
  */
 int sample(double time, int num_values, double *values)
 {
+	int i;
+
 	if (output_time)
 		fprintf(stderr,"%g\n",time);
 
 	/* Console output */
 	printf("%g",time);
-	for (int i=0;i<num_values;i++)
+	for (i=0;i<num_values;i++)
 		printf("\t%.12g",values[i]);
 
 	if (plot)
@@ -441,7 +443,7 @@ int sample(double time, int num_values, double *values)
 			}
 
 			current->num_values = num_values;
-			for (int i=0;i<num_values;i++)
+			for (i=0;i<num_values;i++)
 				current->values[i] = values[i];
 			current->time = time;
 
@@ -469,7 +471,9 @@ leave:
  */
 int sample_strings(double time, int num_strings, char **values)
 {
-	for (int i=0;i<num_strings;i++)
+	int i;
+
+	for (i=0;i<num_strings;i++)
 	{
 		printf("\t\"%s\"",values[i]);
 	}
@@ -615,7 +619,9 @@ int main(int argc, char **argv)
 
 		if (plot_species)
 		{
-			for (int j=0;plot_species[j];j++)
+			int j;
+
+			for (j=0;plot_species[j];j++)
 			{
 				int idx = strindex(names,plot_species[j]);
 				if (idx == -1)
@@ -627,7 +633,9 @@ int main(int argc, char **argv)
 			}
 		} else
 		{
-			for (int idx=0;idx<samples_first->num_values;idx++)
+			int idx;
+
+			for (idx=0;idx<samples_first->num_values;idx++)
 				plot_samples(ctrl,idx,names[idx],x,y);
 		}
 
