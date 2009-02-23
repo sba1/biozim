@@ -1,4 +1,4 @@
-/*#define HAVE_CMPH_H*/
+//#define HAVE_CMPH_H
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -9,6 +9,17 @@
 #endif
 
 #include "environment.h"
+
+struct environment_internal
+{
+	int dummy;
+#ifdef HAVE_CMPH_H
+	int names_length;
+	char **names;
+	cmph_io_adapter_t *cmph_source;
+	cmph_t *cmph_hash;
+#endif
+};
 
 /**
  * Initializes the environment.
@@ -23,6 +34,28 @@ void environment_init(struct environment *env, struct environment *parent)
 }
 
 /**
+ * Cleanup resources allocated by environment_optimize().
+ * 
+ * @param env
+ */
+static void environment_clean_optimization(struct environment_internal *internal)
+{
+	if (!internal) return;
+#ifdef HAVE_CMPH_H
+	cmph_io_vector_adapter_destroy(internal->cmph_source);
+	if (internal->names)
+	{
+		int i;
+		
+		for (i=0;i<internal->names_length;i++)
+			free(internal->names[i]);
+		free(internal->names);
+	}
+#endif
+	free(internal);
+}
+
+/**
  * Optimize the environment for quick accesses. You should
  * call this function when you are read with adding variables.
  *
@@ -30,6 +63,47 @@ void environment_init(struct environment *env, struct environment *parent)
  */
 void environment_optimize(struct environment *env)
 {
+#ifdef HAVE_CMPH_H
+	unsigned int i;
+	struct environment_internal *internal;
+	cmph_config_t *cmph_config = NULL;
+
+	environment_clean_optimization(env->internal);
+	env->internal = NULL;
+
+	/* Allocate new structure */
+	if (!(internal = (struct environment_internal *)malloc(sizeof(struct environment_internal))))
+		goto bailout;
+	memset(internal,0,sizeof(struct environment_internal));
+
+	/* Get names */
+	if (!(internal->names = (char**)malloc(env->num_values*sizeof(char*))))
+		return;
+	for (i=0;i<env->num_values;i++)
+	{
+		if (!(internal->names[internal->names_length] = strdup(env->values[i]->name)))
+			goto bailout;
+		internal->names_length++;
+	}
+
+	/* Generate perfect hashing */
+	if (!(internal->cmph_source = cmph_io_vector_adapter(internal->names,env->num_values)))
+		goto bailout;
+
+	if (!(cmph_config = cmph_config_new(internal->cmph_source)))
+		goto bailout;
+
+	if (!(internal->cmph_hash = cmph_new(cmph_config)))
+		goto bailout;
+
+	cmph_config_destroy(cmph_config);
+	env->internal = internal;
+	return;
+
+bailout:
+	fprintf(stderr,"***Warning***: Couldn't create hash table!");
+	environment_clean_optimization(internal);
+#endif
 }
 
 /**
@@ -43,6 +117,20 @@ void environment_optimize(struct environment *env)
 struct value *environment_get_value(const struct environment *env, const char *name)
 {
 	unsigned int i;
+
+#ifdef HAVE_CMPH_H	
+	struct environment_internal *internal;
+
+	if ((internal = env->internal))
+	{
+		unsigned int id;
+
+		id = cmph_search(internal->cmph_hash,name,strlen(name));
+
+		if (id < env->num_values && !strcmp(env->values[id]->name,name))
+			return env->values[id];
+	}
+#endif
 
 	while (env)
 	{

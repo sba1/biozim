@@ -33,6 +33,8 @@ struct value
 	ASTNode *node;
 };
 
+struct environment_internal;
+
 /* Container for values */
 struct environment
 {
@@ -47,6 +49,9 @@ struct environment
 
 	/* Allocated length of values */
 	unsigned int num_values_allocated;
+
+	/* Internal stuff */
+	struct environment_internal *internal;
 };
 
 struct environment_snapshot
