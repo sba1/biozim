@@ -13,7 +13,7 @@ OBJS = $(SBML_OBJS) $(ODE_OBJS) \
 	simulation.o
 
 
-LIBS = -L /home/sba/local/lib -lsundials_cvode -lsundials_nvecserial -lsbml -lm -lstdc++
+LIBS = -L /home/sba/local/lib -lsundials_cvode -lsundials_nvecserial -lsbml -lcmph -lm -lstdc++
 INC = -I . -I /home/sba/local/include
 
 TARGET =	biozim
