@@ -8,6 +8,9 @@ struct value
 	/* The name of the value */
 	const char *name;
 
+	/* The duplicated name if any */
+	char *duplicated_name;
+
 	/* The value's actual value (used for ODEs) */
 	double value;
 
@@ -64,6 +67,8 @@ struct environment_snapshot
 #define environment_set_value_double(v,d) ((struct value*)v)->value = d
 
 void environment_init(struct environment *env, struct environment *parent);
+void environment_deinit(struct environment *env);
+
 void environment_optimize(struct environment *env);
 struct environment_snapshot *environment_snapshot(struct environment *env);
 void environment_set_to_snapshot(struct environment *env, struct environment_snapshot *snap);
@@ -73,6 +78,6 @@ double environment_get_value_by_name(const struct environment *env, const char *
 void environment_query_all(const struct environment *env, int (*callback)(struct value *));
 int environment_is_value_defined(const struct environment *env, const char *name);
 void *environment_get_value_handle(const struct environment *env, const char *name);
-struct value *environment_add_value(struct environment *env, const char *name);
+struct value *environment_add_value(struct environment *env, const char *name, int duplicate_name);
 
 #endif

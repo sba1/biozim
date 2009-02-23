@@ -195,13 +195,19 @@ void *environment_get_value_handle(const struct environment *env, const char *na
 	return environment_get_value_handle(env,name);
 }
 
-/*****************************************************
- Add a new value to the environment. Returns NULL
- on an error, i.e., if no memory was available.
-******************************************************/
-struct value *environment_add_value(struct environment *env, const char *name)
+/**
+ * Add a new value to the environment. Returns NULL
+ * on an error, i.e., if no memory was available.
+ * 
+ * @param env
+ * @param name
+ * @param duplicate_name specify if names should be duplicated 
+ * @return
+ */
+struct value *environment_add_value(struct environment *env, const char *name, int duplicate_name)
 {
 	struct value *v;
+	char *name_dupl;
 
 	if (environment_is_value_defined(env,name))
 	{
@@ -209,8 +215,19 @@ struct value *environment_add_value(struct environment *env, const char *name)
 		return NULL;
 	}
 
+	if (duplicate_name)
+	{
+		if (!(name_dupl = strdup(name)))
+		{
+			fprintf(stderr,"Not enough memory!\n");
+			return NULL;
+		}
+	} else name_dupl = NULL;
+
+
 	if (!(v = (struct value*)malloc(sizeof(struct value))))
 	{
+		free(name_dupl);
 		fprintf(stderr,"Not enough memory!\n");
 		return NULL;
 	}
@@ -221,6 +238,8 @@ struct value *environment_add_value(struct environment *env, const char *name)
 
 		if (!(va = (struct value**)realloc(env->values,(env->num_values_allocated+10)*2*sizeof(struct value*))))
 		{
+			free(v);
+			free(name_dupl);
 			fprintf(stderr,"Not enough memory!\n");
 			return NULL;
 		}
@@ -229,7 +248,8 @@ struct value *environment_add_value(struct environment *env, const char *name)
 	}
 
 	memset(v,0,sizeof(struct value));
-	v->name = name;
+	if ((v->duplicated_name = name_dupl)) v->name = name_dupl;
+	else v->name = name;
 	v->index = env->num_values;
 	env->values[env->num_values++] = v;
 	return v;
@@ -298,4 +318,23 @@ void environment_free_snapshot(struct environment_snapshot *snap)
 	free(snap->int_values);
 	free(snap->dbl_values);
 	free(snap);
+}
+
+/**
+ * Deinitalizes the given environment and gives back all associated resources.
+ *
+ * @param env
+ */
+void environment_deinit(struct environment *env)
+{
+	if (env->values)
+	{
+		unsigned int i;
+		for (i=0;i<env->num_values;i++)
+		{
+			free(env->values[i]->duplicated_name);
+			free(env->values[i]);
+		}
+	}
+	free(env->values);
 }

@@ -153,22 +153,18 @@ struct reaction
 
 /***********************************************/
 
-
-/*****************************************************
- Add a new parameter to the given value.
-******************************************************/
+/**
+ * Add a new parameter to the given value.
+ *  
+ * @param env
+ * @param p
+ * @return
+ */
 static int environment_add_parameter(struct environment *env, Parameter *p)
 {
-	char *name;
 	struct value *v;
 
-	if (!(name = strdup(p->getId().c_str())))
-	{
-		fprintf(stderr,"Not enough memory!\n");
-		return 0;
-	}
-
-	if ((v = environment_add_value(env,name)))
+	if ((v = environment_add_value(env,p->getId().c_str(),1)))
 	{
 		v->fixed = 1;
 
@@ -191,16 +187,10 @@ static int environment_add_parameter(struct environment *env, Parameter *p)
  */
 static struct value *simulation_context_add_species(struct simulation_context *sc, Species *s)
 {
-	char *name;
 	struct value *v;
 
-	if (!(name = strdup(s->getId().c_str())))
-	{
-		fprintf(stderr,"Not enough memory!\n");
-		return NULL;
-	}
 
-	if (!(v = environment_add_value(&sc->global_env, name)))
+	if (!(v = environment_add_value(&sc->global_env, s->getId().c_str(), 1)))
 		return NULL;
 
 	if (s->isSetInitialAmount())
@@ -265,7 +255,7 @@ static int simulation_context_add_affected(struct simulation_context *sc, const 
  * species reference. May create an own AST.
  *
  * @param ref
- * @return
+ * @return an AST that must be freed when no longer in use.
  */
 static ASTNode *get_stoichiometry_ast(const SpeciesReference *ref)
 {
@@ -273,9 +263,7 @@ static ASTNode *get_stoichiometry_ast(const SpeciesReference *ref)
 	ASTNode *stoich;
 
 	if (stoichMath != NULL)
-	{
 		return stoichMath->getMath()->deepCopy();
-	}
 
 	if (!(stoich = new ASTNode(AST_REAL)))
 		return NULL;
@@ -285,10 +273,15 @@ static ASTNode *get_stoichiometry_ast(const SpeciesReference *ref)
 	return stoich;
 }
 
-/*****************************************************
- For the given SpeciesReference add the formula
- to the right part of its ODE.
-******************************************************/
+/**
+ * For the given SpeciesReference add the formula
+ * to the right part of its ODE.
+ * 
+ * @param sc
+ * @param ref
+ * @param formula
+ * @param type
+ */
 static void simulation_context_add_reference(struct simulation_context *sc, SpeciesReference *ref, const ASTNode *formula, ASTNodeType_t type)
 {
 	struct value *v;
@@ -447,14 +440,11 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	/* Gather compartments */
 	for (i=0;i<numCompartments;i++)
 	{
-		const char *id;
 		struct value *v;
 
 		Compartment *c = model->getCompartment(i);
-		if (!(id = strdup(c->getId().c_str())))
-			goto bailout;
 
-		if (!(v = environment_add_value(&sc->global_env,id)))
+		if (!(v = environment_add_value(&sc->global_env,c->getId().c_str(),1)))
 			goto bailout;
 		environment_set_value_double(v,c->getSize());
 	}
@@ -500,6 +490,11 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		}
 
 		ASTNode *formula = kineticLaw->getMath()->deepCopy();
+		if (!formula)
+		{
+			fprintf(stderr,"Not enough memory available!");
+			goto bailout;
+		}
 
 		fix_power_function(formula);
 
@@ -514,7 +509,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		if (!(sc->reactions[i].products = (struct reference*)malloc(sizeof(sc->reactions[i].reactants[0])*numProducts)))
 			goto bailout;
 
-		/* Rename local parameters */
+		/* Add local parameters (and rename then) */
 		for (j=0;j<numParameter;j++)
 		{
 			Parameter *p = kineticLaw->getParameter(j);
@@ -534,8 +529,11 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 				goto bailout;
 			new_param->setName(new_id);
 
-			if (!(v = environment_add_value(&sc->global_env,new_id)))
+			if (!(v = environment_add_value(&sc->global_env, new_id, 0)))
+			{
+				free(new_id);
 				goto bailout;
+			}
 			v->fixed = 1;
 
 			if (p->isSetValue())
@@ -688,6 +686,8 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	}
 	 	sc->events[i] = ev;
 	}
+
+	environment_optimize(&sc->global_env);
 
 	/* Perform given assignments */
 	while (assignment)
@@ -2351,11 +2351,15 @@ out:
 	free(value_space);
 }
 
-/**********************************************************
- Frees memory associated with a simulation.
-***********************************************************/
+/**
+ * Frees all memory associated with a simulation.
+ *  
+ * @param sc
+ */
 void simulation_context_free(struct simulation_context *sc)
 {
+	unsigned int i;
+
 #if 0
 	if (sc->values)
 	{
@@ -2383,6 +2387,28 @@ void simulation_context_free(struct simulation_context *sc)
 
 	simulation_context_det_finish_jit(sc);
 
+	for (i=0;i<sc->global_env.num_values;i++)
+		delete sc->global_env.values[i]->node;
+	
+	if (sc->reactions)
+	{
+		for (i=0;i<sc->num_reactions;i++)
+		{
+			unsigned int j;
+
+			delete sc->reactions[i].formula;
+
+			for (j=0;j<sc->reactions[i].num_products;j++)
+				delete sc->reactions[i].products[j].stoich;
+
+			for (j=0;j<sc->reactions[i].num_reactants;j++)
+				delete sc->reactions[i].reactants[j].stoich;
+
+			free(sc->reactions[i].products);
+			free(sc->reactions[i].reactants);
+		}
+		free(sc->reactions);
+	}
 	free(sc->value_space);
 	free(sc->names);
 	free(sc->unfixed);
@@ -2393,6 +2419,9 @@ void simulation_context_free(struct simulation_context *sc)
 	if (sc->dlhandle)
 		dlclose(sc->dlhandle);
 
+	if (sc->init_snap)
+		environment_free_snapshot(sc->init_snap);
+	environment_deinit(&sc->global_env);
 	free(sc);
 }
 
