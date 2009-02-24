@@ -1,5 +1,3 @@
-//#define HAVE_CMPH_H
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -63,6 +61,8 @@ static void environment_clean_optimization(struct environment_internal *internal
  */
 void environment_optimize(struct environment *env)
 {
+	if (env->num_values < 20) return;
+
 #ifdef HAVE_CMPH_H
 	unsigned int i;
 	struct environment_internal *internal;

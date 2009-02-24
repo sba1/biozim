@@ -21,7 +21,7 @@
 
 /***********************************************/
 
-static double evaluate(struct environment *sc, const ASTNode *node);
+static double evaluate(struct environment *sc, ASTNode *node);
 
 /***********************************************/
 
@@ -723,9 +723,11 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		}
 
 		v->uninitialized = 0;
-		v->value = evaluate(&sc->global_env,a->getMath());
+		ASTNode *node = a->getMath()->deepCopy();
+		v->value = evaluate(&sc->global_env,node);
 		if (v->is_species)
 			v->molecules = (int)v->value;
+		delete node;
 
 		if (verbose)
 			fprintf(stderr,"Value of \"%s\" changed to %g due to an initial assignment.\n",v->name,v->value);
@@ -810,7 +812,7 @@ void simulation_context_reset(struct simulation_context *sc)
 	environment_set_to_snapshot(&sc->global_env,sc->init_snap);
 }
 
-static double evaluate(struct environment *sc, const ASTNode *node)
+static double evaluate(struct environment *sc, ASTNode *node)
 {
 //	printf("%p type=%d isOper=%d isNumber=%d\n",node,node->getType(),node->isOperator(),node->isNumber());
 
@@ -832,7 +834,31 @@ static double evaluate(struct environment *sc, const ASTNode *node)
 		case	AST_REAL: return node->getReal();
 //		case	AST_REAL_E: break;
 ///		case	AST_RATIONAL: break;
-		case	AST_NAME: return environment_get_value_by_name(sc, node->getName()); break;
+		case	AST_NAME:
+				{
+					struct value *v;
+					const char *name = node->getName();
+
+					if (!(v = (struct value*)node->getUserData()))
+					{
+						v = environment_get_value(sc,name);
+						node->setUserData(v);
+					}
+
+					if (!v)
+					{
+						fprintf(stderr,"***Warning***: Symbol \"%s\" not found! Defaulting to 0.0\n",name);
+						return 0.0;
+					}
+
+					if (v->uninitialized)
+					{
+						fprintf(stderr,"***Warning***: Accessing an uninitialized variable \"%s\"!\n",name);
+						return 0.0;
+					}
+					return v->value;
+				}
+				break;
 //		case	AST_NAME_TIME: break;
 //		case	AST_CONSTANT_E: break;
 //		case	AST_CONSTANT_FALSE: break;
