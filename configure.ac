@@ -38,6 +38,8 @@ AC_FUNC_STRTOD
 AC_FUNC_VPRINTF
 AC_CHECK_FUNCS([gettimeofday memset pow strchr strdup strtol])
 
+AC_PROG_SWIG
+
 # TODO: Add better sundials stuff
 SUNDIALS_CFLAGS=`sundials-config -m cvode -t s -l c -s cflags`
 SUNDIALS_LIBS=`sundials-config -m cvode -t s -l c -s libs`
@@ -47,6 +49,7 @@ AC_SUBST(SUNDIALS_LIBS)
 
 
 PKG_CHECK_MODULES(LIBSBML, [libsbml >= 3.3.1])
+PKG_CHECK_MODULES(LUA5_1, [lua5.1])
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([src/Makefile])
