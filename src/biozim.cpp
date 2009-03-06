@@ -247,6 +247,9 @@ static void parse_args(int argc, char *argv[])
 				nr_arg = &argv[i][7];
 			else
 			{
+				if (i + 1 >= argc)
+					continue;
+
 				nr_arg = argv[i+1];
 				if (*nr_arg == '-')
 					continue;
