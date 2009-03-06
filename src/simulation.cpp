@@ -26,14 +26,8 @@ static double evaluate(struct environment *sc, ASTNode *node);
 /***********************************************/
 
 
-/* Define to use the simple method to find the reaction */
-#define USE_SIMPLE
-
-/* Define to use the cum sum method to find the reaction */
-/*#define USE_CUMSUM*/
-
-/* Define to use the quick method to find the reaction */
-/*#define USE_QUICK*/
+/* Define to use the binary method to find the reaction */
+#define USE_BINARY
 
 /***********************************************/
 
@@ -1756,11 +1750,8 @@ int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct 
 	fprintf(out,"\tdouble tdelta = tmax / steps;\n");
 	fprintf(out,"\tdouble tcb = 0;\n");
 	fprintf(out,"\tdouble tcb1 = 0;\n");
-#ifdef USE_CUMSUM
-	fprintf(out,"\tdouble acum[%d];\n",sc->num_reactions);
-#endif
 
-#if (defined(USE_SIMPLE) || defined(USE_CUMSUM))
+#ifndef USE_BINARY
 	fprintf(out,"\tdouble a[%d];\n",sc->num_reactions);
 	int start_idx = 0;
 #else
@@ -1795,36 +1786,21 @@ int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct 
 	for (i=0;i<sc->num_reactions;i++)
 		simulation_write_propensity_calculation(out,sc,i,start_idx,0);
 
-#ifdef USE_QUICK
-	/** Build interval data structure */
+#ifdef USE_BINARY
+	/** Build the initial interval data structure */
 	for (int l=leafs-2;l>=0;l--)
 	{
 		fprintf(out,"\t\ta[%d]=a[%d]+a[%d];\n",l,child1(l),child2(l));
 	}
-
-	/** Calculate a_all for quick **/
-	fprintf(out,"\t\tdouble a_all_quick = 0");
-	for (i=0;i<sc->num_reactions;i++)
-		fprintf(out," + a[%d]",i + leafs - 1);
-	fprintf(out,";\n");
-
 #endif
 
 	fprintf(out,"\n\twhile (t<tmax)\n");
 	fprintf(out,"\t{\n");
 
-#ifdef USE_CUMSUM
-	/** Second step: Calculate a_cum */
-	fprintf(out,"\t\tacum[0] = a[0];\n");
-	fprintf(out,"\t\tfor (i=1;i<%d;i++)\n",sc->num_reactions);
-	fprintf(out,"\t\t{\n");
-	fprintf(out,"\t\t\tacum[i] = acum[i-1] + a[i];\n");
-	fprintf(out,"\t\t}\n");
-	fprintf(out,"\t\tdouble a_all = acum[%d];\n",sc->num_reactions-1);
-#endif
-
-#ifdef USE_SIMPLE
 	/** Second step: Calculate a_all **/
+#ifdef USE_BINARY
+	fprintf(out,"\t\tdouble a_all = a[0];\n");
+#else
 	fprintf(out,"\t\tdouble a_all = 0");
 	for (i=0;i<sc->num_reactions;i++)
 		fprintf(out," + a[%d]",i);
@@ -1835,38 +1811,11 @@ int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct 
 	/** Third step: Draw random numbers **/
 	fprintf(out,"\t\tdouble r1 = random()/(double)RAND_MAX;\n");
 	fprintf(out,"\t\tdouble r2 = random()/(double)RAND_MAX;\n");
-#ifdef USE_QUICK
-	fprintf(out,"\t\tdouble ar = r2*a_all_quick;\n");
-	fprintf(out,"\t\tdouble tau = (1.0/a_all_quick) * log(1.0/r1);\n");
-#else
 	fprintf(out,"\t\tdouble ar = r2*a_all;\n");
 	fprintf(out,"\t\tdouble tau = (1.0/a_all) * log(1.0/r1);\n");
-#endif
 
 	/** Fourth step: Find the fired reaction **/
-#ifdef USE_SIMPLE
-	fprintf(out,"\t\tdouble a_sum = 0;\n");
-	fprintf(out,"\t\tfor (i=0;i<%d;i++)\n",sc->num_reactions);
-	fprintf(out,"\t\t{\n");
-	fprintf(out,"\t\t\ta_sum += a[i];\n");
-	fprintf(out,"\t\t\tif (a_sum >= ar)\n");
-	fprintf(out,"\t\t\t\tbreak;\n");
-	fprintf(out,"\t\t}\n");
-#endif
-
-#ifdef USE_CUMSUM
-	fprintf(out,"\t\tint l = 0;\n");
-	fprintf(out,"\t\tint r = %d;\n",sc->num_reactions-1);
-	fprintf(out,"\t\twhile (l < r)\n");
-	fprintf(out,"\t\t{\n");
-	fprintf(out,"\t\t\tint m = (r+l)/2;\n");
-	fprintf(out,"\t\t\tif (acum[m] > ar) r=m;\n");
-	fprintf(out,"\t\t\t\telse l=m+1;\n");
-	fprintf(out,"\t\t}\n");
-	fprintf(out,"\t\ti=l;\n");
-#endif
-
-#ifdef USE_QUICK
+#ifdef USE_BINARY
 	fprintf(out,"\t\tdouble interval_l = 0;\n");
 	fprintf(out,"\t\tint node = 0;\n");
 	fprintf(out,"\t\twhile (node < %d)\n",leafs-1);
@@ -1877,9 +1826,15 @@ int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct 
 	fprintf(out,"\t\t}\n");
 	fprintf(out,"\t\tnode -= %d;\n",leafs-1);
 	fprintf(out,"\t\ti = node;\n");
-//	fprintf(out,"\t\tif (i!= node) printf(\"%%d %%d\\n\",i,node);\n");
+#else
+	fprintf(out,"\t\tdouble a_sum = 0;\n");
+	fprintf(out,"\t\tfor (i=0;i<%d;i++)\n",sc->num_reactions);
+	fprintf(out,"\t\t{\n");
+	fprintf(out,"\t\t\ta_sum += a[i];\n");
+	fprintf(out,"\t\t\tif (a_sum >= ar)\n");
+	fprintf(out,"\t\t\t\tbreak;\n");
+	fprintf(out,"\t\t}\n");
 #endif
-
 
 	/** Fivth step: Fire the reaction */
 	fprintf(out,"\t\tswitch(i)\n");
@@ -1926,7 +1881,7 @@ int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct 
 			}
 		}
 
-#ifdef USE_QUICK
+#ifdef USE_BINARY
 		int changed_array[leafs-1];
 		memset(changed_array,0,sizeof(changed_array));
 #endif
@@ -1934,17 +1889,17 @@ int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct 
 		{
 			simulation_write_propensity_calculation(out,sc,changed_list[j], start_idx,1);
 
-			#ifdef USE_QUICK
+#ifdef USE_BINARY
 			int n = changed_list[j] + leafs - 1;
 
 			while ((n = parent(n)))
 				changed_array[n] = 1;
-			changed_array[0] = 1;
+			changed_array[0] = 1; /* Mark the root */
 #endif
 			changed[changed_list[j]] = 0;
 		}
 
-#ifdef USE_QUICK
+#ifdef USE_BINARY
 		for (int l=leafs-2;l>=0;l--)
 		{
 			if (changed_array[l])
