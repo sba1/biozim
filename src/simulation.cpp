@@ -1600,16 +1600,7 @@ static void simulation_write_propensity_calculation(FILE *out, struct simulation
 	}
 #endif
 
-#ifdef USE_QUICK
-	if (delta)
-		fprintf(out,"\t\tdouble a_old = a[%d];\n",i + offset_idx);
-#endif
 	fprintf(out,"\t\ta[%d]=h_c*%s;\n",i + offset_idx, SBML_formulaToString(r->formula));
-
-#ifdef USE_QUICK
-	if (delta)
-		fprintf(out,"\t\ta_all_quick += a[%d] - a_old;\n",i + offset_idx);
-#endif
 	fprintf(out,"\t}\n");
 
 }
@@ -1624,7 +1615,7 @@ static void simulation_write_propensity_calculation(FILE *out, struct simulation
  *
  * @return whether successful or not
  */
-int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct integration_settings *settings, int gen_jit)
+static int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct integration_settings *settings, int gen_jit)
 {
 	unsigned int i,j;
 
