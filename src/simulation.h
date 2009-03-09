@@ -17,10 +17,10 @@ struct integration_settings
 	double relative_error;
 
 	/* The sampling function. It is called for every sampled time point */
-	int (*sample_func)(double time, int num_values, double *values);
+	int (*sample_func)(double time, int num_values, double *values, void *user_data);
 
 	/* As above, but for string variables. The calling of both functions is synced */
-	int (*sample_str_func)(double time, int num_strings, char **values);
+	int (*sample_str_func)(double time, int num_strings, char **values, void *user_data);
 
 	/* If set, the interpreted evaluation of the right-hand side is performed */
 	int force_interpreted;

@@ -420,7 +420,7 @@ static int samples_total;
  * @param values
  * @return
  */
-int sample(double time, int num_values, double *values)
+int sample(double time, int num_values, double *values, void *user_data)
 {
 	int i;
 
@@ -472,7 +472,7 @@ leave:
  * @param values
  * @return
  */
-int sample_strings(double time, int num_strings, char **values)
+int sample_strings(double time, int num_strings, char **values, void *user_data)
 {
 	int i;
 

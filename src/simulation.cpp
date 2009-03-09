@@ -49,8 +49,8 @@ struct simulation_context
 	unsigned int num_unfixed;
 
 	/* The sampling function. It is called for every sampled time point */
-	int (*sample_func)(double time, int num_values, double *values);
-	int (*sample_str_func)(double time, int num_strings, char **values);
+	int (*sample_func)(double time, int num_values, double *values, void *user_data);
+	int (*sample_str_func)(double time, int num_strings, char **values, void *user_data);
 
 	/* The seed has been used */
 	int used_seed;
@@ -101,8 +101,8 @@ struct simulation_run_context
 
 	double *value_space;
 
-	int (*sample_func)(double time, int num_values, double *values);
-	int (*sample_str_func)(double time, int num_strings, char **values);
+	int (*sample_func)(double time, int num_values, double *values, void *user_data);
+	int (*sample_str_func)(double time, int num_strings, char **values, void *user_data);
 };
 
 extern int verbose;
@@ -1432,8 +1432,8 @@ static int simulation_run_context_sample(struct simulation_run_context *src, dou
 {
 	int rc = 0;
 
-	if (src->sample_func) rc = src->sample_func(t,src->sc->global_env.num_values, src->value_space);
-	if (rc && src->sample_str_func) rc |= src->sample_str_func(t,0,NULL);
+	if (src->sample_func) rc = src->sample_func(t,src->sc->global_env.num_values, src->value_space, NULL);
+	if (rc && src->sample_str_func) rc |= src->sample_str_func(t,0,NULL, NULL);
 
 	return rc;
 }
@@ -2333,13 +2333,13 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 	simulation_context_check_trigger(sc,0,value_space);
 	if (settings->sample_func)
 	{
-		if (!settings->sample_func(0.0,num_values,value_space))
+		if (!settings->sample_func(0.0,num_values,value_space,NULL))
 			goto out;
 	}
 
 	if (settings->sample_str_func)
 	{
-		if (!settings->sample_str_func(0.0,sc->knocked_out_ptr?1:0,sc->knocked_out_ptr))
+		if (!settings->sample_str_func(0.0,sc->knocked_out_ptr?1:0,sc->knocked_out_ptr,NULL))
 			goto out;
 	}
 
@@ -2380,14 +2380,14 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 		if (settings->sample_func)
 		{
-			if (!settings->sample_func(tmax*i/steps,num_values,value_space))
+			if (!settings->sample_func(tmax*i/steps,num_values,value_space,NULL))
 				goto out;
 
 		}
 
 		if (settings->sample_str_func)
 		{
-			if (!settings->sample_str_func(0.0,sc->knocked_out_ptr?1:0,sc->knocked_out_ptr))
+			if (!settings->sample_str_func(0.0,sc->knocked_out_ptr?1:0,sc->knocked_out_ptr,NULL))
 				goto out;
 		}
 	}
