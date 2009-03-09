@@ -67,6 +67,11 @@ static char **plot_species;
  */
 static int runs = 1;
 
+/**
+ * @brief identifies the current run.
+ */
+static int current_run;
+
 /** @brief Verbose output to stderr */
 int verbose; /* used by other modules */
 
@@ -429,6 +434,8 @@ int sample(double time, int num_values, double *values, void *user_data)
 
 	/* Console output */
 	printf("%g",time);
+	if (runs > 1)
+		printf("\t%d",current_run);
 	for (i=0;i<num_values;i++)
 		printf("\t%.12g",values[i]);
 
@@ -555,6 +562,8 @@ int main(int argc, char **argv)
 	{
 		unsigned int i;
 		printf("Time");
+		if (runs > 1)
+			printf("\tRun");
 		for (i=0;names[i];i++)
 		{
 			printf("\t");
@@ -601,6 +610,7 @@ int main(int argc, char **argv)
 	for (run=0;run<runs;run++)
 	{
 		simulation_context_reset(sc);
+		current_run = run;
 		simulation_integrate(sc,&settings);
 	}
 
