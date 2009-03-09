@@ -48,9 +48,6 @@ struct simulation_context
 	/* Length of the unfixed array */
 	unsigned int num_unfixed;
 
-	/* Valid during stochastic integration. Value space */
-	double *value_space;
-
 	/* The sampling function. It is called for every sampled time point */
 	int (*sample_func)(double time, int num_values, double *values);
 	int (*sample_str_func)(double time, int num_strings, char **values);
@@ -96,6 +93,16 @@ struct simulation_context
 	/* Preallocated space for the dlrhs function */
 	double *dly;
 	double *dlydot;
+};
+
+struct simulation_run_context
+{
+	struct simulation_context *sc;
+
+	double *value_space;
+
+	int (*sample_func)(double time, int num_values, double *values);
+	int (*sample_str_func)(double time, int num_strings, char **values);
 };
 
 extern int verbose;
@@ -1360,6 +1367,7 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 	}
 }
 
+#if 0
 /**********************************************************
  Calculates binomial
 ***********************************************************/
@@ -1383,6 +1391,52 @@ uint64_t binomial(int N, int K)
 
 	return binomial[N][K];
 }
+#endif
+
+static void simulation_run_context_delete(struct simulation_run_context *src)
+{
+	if (src)
+		free(src->value_space);
+	free(src);
+}
+
+static simulation_run_context *simulation_run_context_create(struct simulation_context *sc)
+{
+	struct simulation_run_context *src;
+
+	if (!(src = (struct simulation_run_context*)malloc(sizeof(*src))))
+		return NULL;
+	memset(src,0,sizeof(*src));
+	src->sc = sc;
+
+	/* Initialize value space */
+	if (!(src->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
+		goto bailout;
+	for (unsigned int i=0;i<sc->global_env.num_values;i++)
+	{
+		struct value *v;
+
+		v = sc->global_env.values[i];
+
+		if (v->is_species) src->value_space[i] = v->molecules;
+		else src->value_space[i] = v->value;
+	}
+
+	return src;
+bailout:
+	simulation_run_context_delete(src);
+	return NULL;
+}
+
+static int simulation_run_context_sample(struct simulation_run_context *src, double t)
+{
+	int rc = 0;
+
+	if (src->sample_func) rc = src->sample_func(t,src->sc->global_env.num_values, src->value_space);
+	if (rc && src->sample_str_func) rc |= src->sample_str_func(t,0,NULL);
+
+	return rc;
+}
 
 /**
  * Integrates the simulation using stochastic simulator.
@@ -1390,7 +1444,7 @@ uint64_t binomial(int N, int K)
  * @param sc
  * @param settings
  */
-void simulation_integrate_stochastic(struct simulation_context *sc, struct integration_settings *settings)
+static void simulation_integrate_stochastic(struct simulation_context *sc, struct integration_settings *settings)
 {
 	double t;
 	double tcb; /* callback remainder */
@@ -1400,27 +1454,30 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 	double tdelta = tmax / steps;
 	double tcb1 = 0;
 
-	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
-		return;
+	struct simulation_run_context *src;
 
-	sc->sample_func = settings->sample_func;
-	sc->sample_str_func = settings->sample_str_func;
+	if (!(src = simulation_run_context_create(sc)))
+		return;
+	
+//	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
+//		return;
+
+	src->sample_func = settings->sample_func;
+	src->sample_str_func = settings->sample_str_func;
 
 	t = 0;
 	tcb = 0;
 
-	/* Callback */
-	for (unsigned int i=0;i<sc->global_env.num_values;i++)
-	{
-		struct value *v;
-
-		v = sc->global_env.values[i];
-
-		if (v->is_species) sc->value_space[i] = v->molecules;
-		else sc->value_space[i] = v->value;
-	}
-	if (sc->sample_func) sc->sample_func(t,sc->global_env.num_values, sc->value_space);
-	if (sc->sample_str_func) sc->sample_str_func(t,0,NULL);
+//	/* Callback */
+//	for (unsigned int i=0;i<sc->global_env.num_values;i++)
+//	{
+//		struct value *v;
+//
+//		v = sc->global_env.values[i];
+//
+//		if (v->is_species) sc->value_space[i] = v->molecules;
+//		else sc->value_space[i] = v->value;
+//	}
 
 	while (t < tmax)
 	{
@@ -1499,14 +1556,13 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 			}
 		}
 //printf("\n");
+
 		for (unsigned int i=0;i<sc->global_env.num_values;i++)
 		{
 			struct value *v;
-
 			v = sc->global_env.values[i];
-
-			if (v->is_species) sc->value_space[i] = v->molecules;
-			else sc->value_space[i] = v->value;
+			if (v->is_species) src->value_space[i] = v->molecules;
+			else src->value_space[i] = v->value;
 		}
 
 		t += tau;
@@ -1517,8 +1573,9 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 			tcb1 += tdelta;
 			if (tcb1 >= tmax) break;
 
-			if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
-			if (sc->sample_str_func) sc->sample_str_func(tcb1,0,NULL);
+			simulation_run_context_sample(src,tcb1);
+//			if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
+//			if (sc->sample_str_func) sc->sample_str_func(tcb1,0,NULL);
 		}
 
 		step++;
@@ -1528,34 +1585,39 @@ void simulation_integrate_stochastic(struct simulation_context *sc, struct integ
 	{
 		t += tdelta;
 		tcb1 += tdelta;
-		if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
-		if (sc->sample_str_func) sc->sample_str_func(tcb1,0,NULL);
+		simulation_run_context_sample(src,tcb1);
+//		if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
+//		if (sc->sample_str_func) sc->sample_str_func(tcb1,0,NULL);
 	}
 }
 
-/**********************************************************
- Integrates the simulation using stochastic simulator
-***********************************************************/
+/**
+ * Callback for the gillespie algorithm.
+ * 
+ * @param t
+ * @param states
+ * @param userdata
+ * @return
+ */
 static int gillespie_jit_callback(double t, int *states, void *userdata)
 {
-	struct simulation_context *sc;
+	struct simulation_run_context *src;
 	unsigned int i;
-	int rc;
 
-	sc = (struct simulation_context*)userdata;
+	src = (struct simulation_run_context*)userdata;
 
-	for (i=0;i<sc->global_env.num_values;i++)
+	for (i=0;i<src->sc->global_env.num_values;i++)
 	{
-		if (sc->global_env.values[i]->is_species)
-			sc->value_space[i] = states[i];
+		if (src->sc->global_env.values[i]->is_species)
+			src->value_space[i] = states[i];
 	}
 
-	sc = (struct simulation_context *)userdata;
-
-	rc = sc->sample_func(t,sc->global_env.num_values, sc->value_space);
-	if (sc->sample_str_func) rc |= sc->sample_str_func(t,0,NULL);
-
-	return rc;
+	return simulation_run_context_sample(src,t);
+//	
+//	rc = sc->sample_func(t,sc->global_env.num_values, sc->value_space);
+//	if (sc->sample_str_func) rc |= sc->sample_str_func(t,0,NULL);
+//
+//	return rc;
 }
 
 /**********************************************************
@@ -1635,19 +1697,24 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	int *stoich_mat;
 	unsigned int stoich_mat_entries = 0;
 
-	sc->sample_func = settings->sample_func;
-	sc->sample_str_func = settings->sample_str_func;
+	struct simulation_run_context *src;
 
-	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
+	if (!(src = simulation_run_context_create(sc)))
 		return 0;
 
-	for (i=0;i<sc->global_env.num_values;i++)
-		sc->value_space[i] = sc->global_env.values[i]->value;
+	src->sample_func = settings->sample_func;
+	src->sample_str_func = settings->sample_str_func;
+
+//	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
+//		return 0;
+//	for (i=0;i<sc->global_env.num_values;i++)
+//		sc->value_space[i] = sc->global_env.values[i]->value;
 
 	if (!(stoich_mat = (int*)malloc(sc->num_reactions * stoich_mat_cols * sizeof(unsigned int))))
 	{
-		free(sc->value_space);
-		sc->value_space = NULL;
+		simulation_run_context_delete(src);
+//		free(sc->value_space);
+//		sc->value_space = NULL;
 		return 0;
 	}
 	memset(stoich_mat,0,sc->num_reactions * stoich_mat_cols * sizeof(unsigned int));
@@ -1712,8 +1779,9 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	if (!(out = fopen(filename,"w")))
 	{
 		fprintf(stderr,"Unable to open \"%s\" for output.\n",filename);
-		free(sc->value_space);
-		sc->value_space = NULL;
+		simulation_run_context_delete(src);
+//		free(sc->value_space);
+//		sc->value_space = NULL;
 		return 0;
 	}
 
@@ -1936,8 +2004,9 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 
 	if (!(command = (char*)malloc(500)))
 	{
-		free(sc->value_space);
-		sc->value_space = NULL;
+		simulation_run_context_delete(src);
+//		free(sc->value_space);
+//		sc->value_space = NULL;
 		return 0;
 	}
 
@@ -1959,8 +2028,9 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 
 			dlclose(sc->dlhandle);
 			sc->dlhandle = NULL;
-			free(sc->value_space);
-			sc->value_space = NULL;
+			simulation_run_context_delete(src);
+//			free(sc->value_space);
+//			sc->value_space = NULL;
 			return 0;
 		}
 	}
@@ -2000,32 +2070,31 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 			/* unflag */
 			changed[changed_list[i]] = 0;
 
-			for (unsigned j=0;j<r->num_reactants;j++)
-			{
-				struct reference *ref = &r->reactants[j];
-
-				int int_val = ref->stoich_value;
-
-				switch (int_val)
-				{
-					case	0:
-							h_c = 0;
-							break;
-
-					case	1:
-							h_c *= ref->value->molecules;
-							break;
-
-					case	2:
-							h_c *= (double)ref->value->molecules * (double)(ref->value->molecules - 1)/2;
-							break;
-
-					default:
-							h_c *= binomial(ref->value->molecules,evaluate(&sc->global_env,ref->stoich));
-							break;
-				}
-
-			}
+//			for (unsigned j=0;j<r->num_reactants;j++)
+//			{
+//				struct reference *ref = &r->reactants[j];
+//
+//				int int_val = ref->stoich_value;
+//
+//				switch (int_val)
+//				{
+//					case	0:
+//							h_c = 0;
+//							break;
+//
+//					case	1:
+//							h_c *= ref->value->molecules;
+//							break;
+//
+//					case	2:
+//							h_c *= (double)ref->value->molecules * (double)(ref->value->molecules - 1)/2;
+//							break;
+//
+//					default:
+//							h_c *= binomial(ref->value->molecules,evaluate(&sc->global_env,ref->stoich));
+//							break;
+//				}
+//			}
 
 			r->h = h_c;
 			r->c = evaluate(&sc->global_env, r->formula);
@@ -2115,8 +2184,10 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 		printf("\n");
 */
 	}
-	free(sc->value_space);
-	sc->value_space = NULL;
+	
+	simulation_run_context_delete(src);
+//	free(sc->value_space);
+//	sc->value_space = NULL;
 
 	return 1;
 }
@@ -2150,7 +2221,15 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 			simulation_integrate_stochastic_quick(sc, settings, 1);
 		if (sc->dlgillespie)
 		{
-			sc->dlgillespie(settings->time, settings->steps, gillespie_jit_callback, sc);
+			struct simulation_run_context *src;
+
+			if ((src = simulation_run_context_create(sc)))
+			{
+				src->sample_func = settings->sample_func;
+				src->sample_str_func = settings->sample_str_func;
+				sc->dlgillespie(settings->time, settings->steps, gillespie_jit_callback, src);
+				simulation_run_context_delete(src);
+			}
 		} else
 		{
 			simulation_integrate_stochastic(sc, settings);
@@ -2381,7 +2460,7 @@ void simulation_context_free(struct simulation_context *sc)
 		}
 		free(sc->reactions);
 	}
-	free(sc->value_space);
+//	free(sc->value_space);
 	free(sc->names);
 	free(sc->unfixed);
 	free(sc->fixed);
