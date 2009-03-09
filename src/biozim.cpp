@@ -3,6 +3,8 @@
 #include <string.h>
 #include <time.h>
 
+#include <config.h>
+
 /* Own headers */
 #include "simulation.h"
 #include "gnuplot_i.h"
@@ -67,10 +69,18 @@ static char **plot_species;
  */
 static int runs = 1;
 
+
+/**
+ * @brief indicates whether the mean should be calculated. Only suitable when runs > 1.
+ */
+static int take_mean;
+
 /**
  * @brief identifies the current run.
  */
 static int current_run;
+
+
 
 /** @brief Verbose output to stderr */
 int verbose; /* used by other modules */
@@ -93,6 +103,7 @@ static void usage(char *name)
 			"\t    --force-interpreted   forces the interpreted calculation of the rhs.\n"
 			"\t    --list-values         list all values.\n"
 			"\t    --maxtime             specifies the end time (defaults to 1).\n"
+			"\t    --mean                specifies whether the mean should be calculated when runs > 1."
 			"\t    --output-time         outputs the current time (stderr).\n"
 			"\t    --plot [sp1,...,spn]  plots the results using gnuplot. Optionally, you can specify\n"
 			"\t                          the species to be plotted.\n"
@@ -242,6 +253,9 @@ static void parse_args(int argc, char *argv[])
 
 			runs = strtod(nr_arg, NULL);
 			if (runs < 0) runs = 0;
+		} else if (!strcmp(argv[i],"--mean"))
+		{
+			take_mean = 1;
 		} else if (!strcmp(argv[i],"--plot"))
 		{
 			char *nr_arg;
@@ -417,6 +431,37 @@ static struct sample *samples_first;
 static struct sample *samples_last;
 static int samples_total;
 
+static int track_sample(double time, int num_values, double *values)
+{
+	struct sample *current;
+	int i;
+	
+	if (!(current = (struct sample*)malloc(sizeof(*current))))
+		return 0;
+	
+	/* Prepare sample */
+	memset(current,0,sizeof(*current));
+	if (!(current->values = (double*)malloc(num_values*sizeof(double))))
+	{
+		free(current);
+		return 0;
+	}
+
+	current->num_values = num_values;
+	for (i=0;i<num_values;i++)
+		current->values[i] = values[i];
+	current->time = time;
+
+	/* Enqueue sample */
+	if (!samples_first) samples_first = current;
+	if (samples_last)
+		samples_last->next = current;
+	samples_last = current;
+	samples_total++;
+
+	return 1;
+}
+
 /**
  * Our sampling function.
  *
@@ -440,35 +485,13 @@ int sample(double time, int num_values, double *values, void *user_data)
 		printf("\t%.12g",values[i]);
 
 	if (plot)
-	{
-		struct sample *current = (struct sample*)malloc(sizeof(*current));
-		if (current)
-		{
-			/* Prepare sample */
-			memset(current,0,sizeof(*current));
-			if (!(current->values = (double*)malloc(num_values*sizeof(double))))
-			{
-				free(current);
-				goto leave;
-			}
-
-			current->num_values = num_values;
-			for (i=0;i<num_values;i++)
-				current->values[i] = values[i];
-			current->time = time;
-
-			/* Enqueue sample */
-			if (!samples_first) samples_first = current;
-			if (samples_last)
-				samples_last->next = current;
-			samples_last = current;
-			samples_total++;
-		}
-	}
+		track_sample(time,num_values,values);
 
 leave:
 	return 1;
 }
+
+
 
 /**
  * Our sampling function for string. This is called always
