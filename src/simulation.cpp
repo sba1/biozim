@@ -1864,8 +1864,8 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	for (i=0;i<sc->num_reactions;i++)
 		fprintf(out," + a[%d]",i);
 	fprintf(out,";\n");
-	fprintf(out,"if (a_all == 0) break;\n");
 #endif
+	fprintf(out,"if (a_all == 0) break;\n");
 
 	/** Third step: Draw random numbers **/
 	fprintf(out,"\t\tdouble r1 = random()/(double)RAND_MAX;\n");
