@@ -5,6 +5,12 @@
 
 #include <config.h>
 
+#define HAVE_LIBGMP
+
+#ifdef HAVE_LIBGMP
+#include <gmp.h>
+#endif
+
 /* Own headers */
 #include "simulation.h"
 #include "gnuplot_i.h"
@@ -423,6 +429,7 @@ struct sample
 	double time;
 	int num_values;
 	double *values;
+
 	int num_strings;
 	char **strings;
 };
@@ -438,14 +445,11 @@ static int track_sample(double time, int num_values, double *values)
 	
 	if (!(current = (struct sample*)malloc(sizeof(*current))))
 		return 0;
+	memset(current,0,sizeof(*current));
 	
 	/* Prepare sample */
-	memset(current,0,sizeof(*current));
 	if (!(current->values = (double*)malloc(num_values*sizeof(double))))
-	{
-		free(current);
-		return 0;
-	}
+		goto bailout;
 
 	current->num_values = num_values;
 	for (i=0;i<num_values;i++)
@@ -460,7 +464,13 @@ static int track_sample(double time, int num_values, double *values)
 	samples_total++;
 
 	return 1;
+bailout:
+	free(current->values);
+	free(current);
+	return 0;
 }
+
+
 
 /**
  * Our sampling function.
@@ -491,7 +501,51 @@ leave:
 	return 1;
 }
 
+#ifdef HAVE_LIBGMP
 
+static double *stat_time;
+static mpz_t *stat_sum;
+static int stat_columns;
+static int stat_rows;
+
+/** @brief holds the current sample row. Needs to be reset for a next run */
+static int stat_row;
+
+int stat_sample(double time, int num_values, double *values, void *user_data)
+{
+	if (!stat_sum)
+	{
+		unsigned int total = (sample_steps+1)*num_values;
+
+		stat_columns = num_values;
+
+		if (!(stat_sum = (mpz_t*)malloc(total * sizeof(mpz_t))))
+			return 0;
+
+		for (unsigned int i=0;i<total;i++)
+			mpz_init(stat_sum[i]);
+	}
+	
+	if (!stat_time)
+	{
+		if (!(stat_time = (double*)malloc(sizeof(double)*(sample_steps+1))))
+			return 0;
+
+		for (int i=0;i<num_values;i++)
+			stat_time[i] = 0.0;
+	}
+
+
+	stat_time[stat_row] = time;
+	mpz_t *start = &stat_sum[stat_row * num_values];
+	
+	for (int i = 0; i < num_values;i++)
+		mpz_add_ui(start[i],start[i],values[i]);
+
+	stat_row++;
+	if (stat_row > stat_rows) stat_rows = stat_row;
+}
+#endif
 
 /**
  * Our sampling function for string. This is called always
@@ -606,6 +660,12 @@ int main(int argc, char **argv)
 	settings.stochastic = stochastic;
 	settings.stiff = stiff;
 
+	if (take_mean)
+	{
+		settings.sample_func = stat_sample;
+		settings.sample_str_func = NULL;
+	}
+
 	/* Do the seed stuff */
 	if (user_seed)
 	{
@@ -632,10 +692,37 @@ int main(int argc, char **argv)
 
 	for (run=0;run<runs;run++)
 	{
+		stat_row = 0;
 		simulation_context_reset(sc);
 		current_run = run;
 		simulation_integrate(sc,&settings);
 	}
+
+#ifdef HAVE_LIBGMP
+	if (take_mean && stat_sum)
+	{
+		double *values = (double*)malloc(sizeof(double)*stat_columns);
+		if (values)
+		{
+			mpz_t temp;
+			mpz_init(temp);
+
+			for (int i=0;i<stat_rows;i++)
+			{
+				for (int j=0;j<stat_columns;j++)
+				{
+					unsigned long int r = mpz_cdiv_q_ui(temp,stat_sum[i*stat_columns + j],runs);
+					values[j] = mpz_get_ui(temp);
+				}
+				
+				sample(stat_time[i],stat_columns,values,NULL);
+				sample_strings(stat_time[i],0,NULL,NULL);
+			}
+			free(values);
+		}
+	}
+#endif
+	
 
 	if (plot && samples_first)
 	{

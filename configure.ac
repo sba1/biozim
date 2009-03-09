@@ -21,6 +21,8 @@ AC_CHECK_LIB([sundials_cvode], [main])
 # FIXME: Replace `main' with a function in `-lsundials_nvecserial':
 AC_CHECK_LIB([sundials_nvecserial], [main])
 
+AC_CHECK_LIB(gmp, __gmpz_init)
+
 # Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS([stddef.h stdint.h stdlib.h string.h sys/time.h unistd.h])
