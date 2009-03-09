@@ -711,8 +711,8 @@ int main(int argc, char **argv)
 			{
 				for (int j=0;j<stat_columns;j++)
 				{
-					unsigned long int r = mpz_cdiv_q_ui(temp,stat_sum[i*stat_columns + j],runs);
-					values[j] = mpz_get_ui(temp);
+					unsigned long int r = mpz_fdiv_q_ui(temp,stat_sum[i*stat_columns + j],runs);
+					values[j] = mpz_get_ui(temp) + r / (double)runs;
 				}
 				
 				sample(stat_time[i],stat_columns,values,NULL);
