@@ -554,11 +554,13 @@ int stat_sample(double time, int num_values, double *values, void *user_data)
 		if (!(stat_time = (double*)malloc(sizeof(double)*(sample_steps+1))))
 			return 0;
 
-		for (int i=0;i<num_values;i++)
+		for (int i=0;i<=sample_steps;i++)
 			stat_time[i] = 0.0;
 	}
 
-
+	if (stat_time[stat_row] != 0.0 && stat_time[stat_row] != time)
+		fprintf(stderr,"***Warning***: Time slices don't match (%g != %g)\n",stat_time[stat_row],time);
+	
 	stat_time[stat_row] = time;
 
 	mpz_t *start_sum = &stat_sum[stat_row * num_values];
@@ -578,7 +580,6 @@ int stat_sample(double time, int num_values, double *values, void *user_data)
 			mpz_add(start_sum_of_sqr[i],start_sum_of_sqr[i],temp);
 		}
 	}
-
 	stat_row++;
 	if (stat_row > stat_rows) stat_rows = stat_row;
 }
