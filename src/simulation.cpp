@@ -1459,25 +1459,11 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 	if (!(src = simulation_run_context_create(sc)))
 		return;
 	
-//	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
-//		return;
-
 	src->sample_func = settings->sample_func;
 	src->sample_str_func = settings->sample_str_func;
 
 	t = 0;
 	tcb = 0;
-
-//	/* Callback */
-//	for (unsigned int i=0;i<sc->global_env.num_values;i++)
-//	{
-//		struct value *v;
-//
-//		v = sc->global_env.values[i];
-//
-//		if (v->is_species) sc->value_space[i] = v->molecules;
-//		else sc->value_space[i] = v->value;
-//	}
 
 	while (t < tmax)
 	{
@@ -1490,28 +1476,15 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 			struct reaction *r = &sc->reactions[i];
 			double h_c = 1.0;
 
-//			for (unsigned j=0;j<r->num_reactants;j++)
-//			{
-//				struct reference *ref = &r->reactants[j];
-//				printf("r%d: stoich=%lf\n",i,evaluate(&sc->global_env,ref->stoich));
-//
-//				h_c *= binomial(ref->value->molecules,evaluate(&sc->global_env,ref->stoich));
-//			}
-
-//printf("h->a(old)=%g ",r->a);
 			r->h = h_c;
 			r->c = evaluate(&sc->global_env, r->formula);
 			r->a = r->h * r->c;
-//printf("h->a(old)=%g\n",r->a);
-//			printf("r%d: h_c=%lf c=%lf a=%lf  %s\n",i,h_c,r->c,r->a, SBML_formulaToString(r->formula));
 
 			a_all += r->a;
 		}
 
 		if (a_all == 0)
-		{
 			break;
-		}
 
 		double r1 = random()/(double)RAND_MAX;
 		double r2 = random()/(double)RAND_MAX;
@@ -1529,12 +1502,8 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 
 			if (a_sum >= r2*a_all)
 			{
-//				printf("reaction %d\n",i);
-
 				for (unsigned j=0;j<r->num_reactants;j++)
 				{
-//					printf("sub from %s: %lf\n",r->reactants[j].value->name,evaluate(&sc->global_env,r->reactants[j].stoich));
-
 					if (!r->reactants[j].value->fixed)
 					{
 						r->reactants[j].value->molecules -= evaluate(&sc->global_env,r->reactants[j].stoich);
@@ -1544,8 +1513,6 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 
 				for (unsigned j=0;j<r->num_products;j++)
 				{
-//					printf("add to %s: %lf\n",r->products[j].value->name,evaluate(&sc->global_env,r->products[j].stoich));
-
 					if (!r->products[j].value->fixed)
 					{
 						r->products[j].value->molecules += evaluate(&sc->global_env,r->products[j].stoich);
@@ -1555,7 +1522,6 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 				break;
 			}
 		}
-//printf("\n");
 
 		for (unsigned int i=0;i<sc->global_env.num_values;i++)
 		{
@@ -1567,15 +1533,12 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 
 		t += tau;
 		tcb += tau;
+		
 		while (tcb > tdelta)
 		{
 			tcb -= tdelta;
 			tcb1 += tdelta;
-			if (tcb1 >= tmax) break;
-
 			simulation_run_context_sample(src,tcb1);
-//			if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
-//			if (sc->sample_str_func) sc->sample_str_func(tcb1,0,NULL);
 		}
 
 		step++;
@@ -1586,8 +1549,6 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 		t += tdelta;
 		tcb1 += tdelta;
 		simulation_run_context_sample(src,tcb1);
-//		if (sc->sample_func) sc->sample_func(tcb1,sc->global_env.num_values, sc->value_space);
-//		if (sc->sample_str_func) sc->sample_str_func(tcb1,0,NULL);
 	}
 }
 
@@ -1613,11 +1574,6 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
 	}
 
 	return simulation_run_context_sample(src,t);
-//	
-//	rc = sc->sample_func(t,sc->global_env.num_values, sc->value_space);
-//	if (sc->sample_str_func) rc |= sc->sample_str_func(t,0,NULL);
-//
-//	return rc;
 }
 
 /**********************************************************
@@ -1980,7 +1936,6 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	fprintf(out,"\t\t{\n");
 	fprintf(out,"\t\t\ttcb -= tdelta;\n");
 	fprintf(out,"\t\t\ttcb1 += tdelta;\n");
-	fprintf(out,"\t\t\tif (tcb1 >= tmax) break;\n");
 	fprintf(out,"\t\t\tif (callback) callback(tcb1,molecules,userdata);\n");
 	fprintf(out,"\t\t}\n");
 
