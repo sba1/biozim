@@ -1458,9 +1458,11 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 
 	if (!(src = simulation_run_context_create(sc)))
 		return;
-	
+
 	src->sample_func = settings->sample_func;
 	src->sample_str_func = settings->sample_str_func;
+
+	simulation_run_context_sample(src,tcb1);
 
 	t = 0;
 	tcb = 0;
@@ -1490,7 +1492,27 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 		double r2 = random()/(double)RAND_MAX;
 		double tau = (1.0/a_all) * log(1.0/r1);
 
-//		printf("step=%d a_all=%lf r2*a_all=%lf tau=%lf\n",step,a_all,r2*a_all,tau);
+		t += tau;
+		tcb += tau;
+
+		if (tcb > tdelta)
+		{
+			for (unsigned int i=0;i<sc->global_env.num_values;i++)
+			{
+				struct value *v;
+				v = sc->global_env.values[i];
+				if (v->is_species) src->value_space[i] = v->molecules;
+				else src->value_space[i] = v->value;
+			}
+		}
+
+		while (tcb > tdelta)
+		{
+			tcb -= tdelta;
+			tcb1 += tdelta;
+			if (tcb1 > tmax) break;
+			simulation_run_context_sample(src,tcb1);
+		}
 
 		for (unsigned int i=0;i<sc->num_reactions;i++)
 		{
@@ -1521,24 +1543,6 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 				}
 				break;
 			}
-		}
-
-		for (unsigned int i=0;i<sc->global_env.num_values;i++)
-		{
-			struct value *v;
-			v = sc->global_env.values[i];
-			if (v->is_species) src->value_space[i] = v->molecules;
-			else src->value_space[i] = v->value;
-		}
-
-		t += tau;
-		tcb += tau;
-		
-		while (tcb > tdelta)
-		{
-			tcb -= tdelta;
-			tcb1 += tdelta;
-			simulation_run_context_sample(src,tcb1);
 		}
 
 		step++;
@@ -1829,6 +1833,17 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	fprintf(out,"\t\tdouble ar = r2*a_all;\n");
 	fprintf(out,"\t\tdouble tau = (1.0/a_all) * log(1.0/r1);\n");
 
+	/** Forward results */
+	fprintf(out,"\t\tt += tau;\n");
+	fprintf(out,"\t\ttcb += tau;\n");
+	fprintf(out,"\t\twhile (tcb > tdelta)\n");
+	fprintf(out,"\t\t{\n");
+	fprintf(out,"\t\t\ttcb -= tdelta;\n");
+	fprintf(out,"\t\t\ttcb1 += tdelta;\n");
+	fprintf(out,"\t\t\tif (tcb1 > tmax) break;\n");
+	fprintf(out,"\t\t\tif (callback) callback(tcb1,molecules,userdata);\n");
+	fprintf(out,"\t\t}\n");
+
 	/** Fourth step: Find the fired reaction **/
 #ifdef USE_BINARY
 	fprintf(out,"\t\tdouble interval_l = 0;\n");
@@ -1929,16 +1944,6 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	}
 
 	fprintf(out,"\t\t}\n");
-
-	fprintf(out,"\t\tt += tau;\n");
-	fprintf(out,"\t\ttcb += tau;\n");
-	fprintf(out,"\t\twhile (tcb > tdelta)\n");
-	fprintf(out,"\t\t{\n");
-	fprintf(out,"\t\t\ttcb -= tdelta;\n");
-	fprintf(out,"\t\t\ttcb1 += tdelta;\n");
-	fprintf(out,"\t\t\tif (callback) callback(tcb1,molecules,userdata);\n");
-	fprintf(out,"\t\t}\n");
-
 	fprintf(out,"\t}\n");
 
 	fprintf(out,"\twhile (t < tmax)\n");
