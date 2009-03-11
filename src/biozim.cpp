@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -81,6 +82,12 @@ static int runs = 1;
  */
 static int take_mean;
 
+
+/**
+ * @brief indicates whether the standard deviation should be calculated. Only suitable when runs > 1.
+ */
+static int take_stddev;
+
 /**
  * @brief identifies the current run.
  */
@@ -115,6 +122,7 @@ static void usage(char *name)
 			"\t                          the species to be plotted.\n"
 			"\t    --runs                specifies the runs to be performed when in stochastic mode.\n"
 			"\t    --sample-steps        the number of sample steps (defaults to 5000).\n"
+			"\t    --stddev              specifies whether the standard deviation should be calculated when runs > 1.\n"
 			"\t    --seed                specifies the seed to be used for stochastic simulation.\n"
 			"\t    --set-var \"name=dbl\"  set the given variable to double value.\n"
 			"\t    --stiff               use solver for stiff ODEs.\n"
@@ -262,6 +270,9 @@ static void parse_args(int argc, char *argv[])
 		} else if (!strcmp(argv[i],"--mean"))
 		{
 			take_mean = 1;
+		} else if (!strcmp(argv[i],"--stddev"))
+		{
+			take_stddev = 1;
 		} else if (!strcmp(argv[i],"--plot"))
 		{
 			char *nr_arg;
@@ -489,7 +500,7 @@ int sample(double time, int num_values, double *values, void *user_data)
 
 	/* Console output */
 	printf("%g",time);
-	if (runs > 1)
+	if (runs > 1 && (take_mean + take_stddev) != 1)
 		printf("\t%d",current_run);
 	for (i=0;i<num_values;i++)
 		printf("\t%.12g",values[i]);
@@ -505,6 +516,7 @@ leave:
 
 static double *stat_time;
 static mpz_t *stat_sum;
+static mpz_t *stat_sum_of_sqr;
 static int stat_columns;
 static int stat_rows;
 
@@ -526,6 +538,17 @@ int stat_sample(double time, int num_values, double *values, void *user_data)
 			mpz_init(stat_sum[i]);
 	}
 	
+	if (!stat_sum_of_sqr && take_stddev)
+	{
+		unsigned int total = (sample_steps+1)*num_values;
+
+		if (!(stat_sum_of_sqr = (mpz_t*)malloc(total * sizeof(mpz_t))))
+			return 0;
+
+		for (unsigned int i=0;i<total;i++)
+			mpz_init(stat_sum_of_sqr[i]);
+	}
+	
 	if (!stat_time)
 	{
 		if (!(stat_time = (double*)malloc(sizeof(double)*(sample_steps+1))))
@@ -537,10 +560,24 @@ int stat_sample(double time, int num_values, double *values, void *user_data)
 
 
 	stat_time[stat_row] = time;
-	mpz_t *start = &stat_sum[stat_row * num_values];
-	
+
+	mpz_t *start_sum = &stat_sum[stat_row * num_values];
 	for (int i = 0; i < num_values;i++)
-		mpz_add_ui(start[i],start[i],values[i]);
+		mpz_add_ui(start_sum[i],start_sum[i],values[i]);
+	
+	if (take_stddev)
+	{
+		mpz_t temp;
+		mpz_init(temp);
+	
+		mpz_t *start_sum_of_sqr = &stat_sum_of_sqr[stat_row * num_values];
+		for (int i = 0; i < num_values;i++)
+		{
+			mpz_set_ui(temp,values[i]);
+			mpz_mul_ui(temp,temp,values[i]);
+			mpz_add(start_sum_of_sqr[i],start_sum_of_sqr[i],temp);
+		}
+	}
 
 	stat_row++;
 	if (stat_row > stat_rows) stat_rows = stat_row;
@@ -618,9 +655,20 @@ int main(int argc, char **argv)
 	struct simulation_context *sc;
 	struct integration_settings settings;
 	const char **names;
-	int run;
 
 	parse_args(argc, argv);
+
+	if (runs < 2 && take_mean)
+	{
+		fprintf(stderr,"The mean has been requested but the number of requested runs (--run parameter) wasn't higher than 1!\n");
+		goto bailout;
+	}
+
+	if (runs < 2 && take_stddev)
+	{
+		fprintf(stderr,"The standard deviation has been requested but the number of requested runs (--run parameter) wasn't higher than 1!\n");
+		goto bailout;
+	}
 
 	if (!(sc = simulation_context_create_from_sbml_file(model_filename,va_first)))
 		goto bailout;
@@ -639,7 +687,8 @@ int main(int argc, char **argv)
 	{
 		unsigned int i;
 		printf("Time");
-		if (runs > 1)
+		
+		if (runs > 1 && (take_mean + take_stddev) != 1)
 			printf("\tRun");
 		for (i=0;names[i];i++)
 		{
@@ -660,7 +709,7 @@ int main(int argc, char **argv)
 	settings.stochastic = stochastic;
 	settings.stiff = stiff;
 
-	if (take_mean)
+	if (take_mean || take_stddev)
 	{
 		settings.sample_func = stat_sample;
 		settings.sample_str_func = NULL;
@@ -690,11 +739,10 @@ int main(int argc, char **argv)
 		runs = 1;
 	}
 
-	for (run=0;run<runs;run++)
+	for (current_run=0;current_run<runs;current_run++)
 	{
 		stat_row = 0;
 		simulation_context_reset(sc);
-		current_run = run;
 		simulation_integrate(sc,&settings);
 	}
 
@@ -705,7 +753,10 @@ int main(int argc, char **argv)
 		if (values)
 		{
 			mpz_t temp;
+
 			mpz_init(temp);
+
+			current_run = 0;
 
 			for (int i=0;i<stat_rows;i++)
 			{
@@ -713,6 +764,52 @@ int main(int argc, char **argv)
 				{
 					unsigned long int r = mpz_fdiv_q_ui(temp,stat_sum[i*stat_columns + j],runs);
 					values[j] = mpz_get_ui(temp) + r / (double)runs;
+				}
+				
+				sample(stat_time[i],stat_columns,values,NULL);
+				sample_strings(stat_time[i],0,NULL,NULL);
+			}
+			free(values);
+		}
+	}
+
+
+	if (take_stddev && stat_sum && stat_sum_of_sqr)
+	{
+		double *values = (double*)malloc(sizeof(double)*stat_columns);
+		if (values)
+		{
+			mpz_t sqr_sum;
+			mpz_t temp;
+			mpq_t var;
+ 			mpq_t divisor; /* will contain n * (n-1) */
+
+			mpz_init(sqr_sum);
+			mpz_init(temp);
+			mpq_init(var);
+			mpq_init(divisor);
+			
+			mpz_set_ui(temp,runs);
+			mpz_mul_ui(temp, temp, runs - 1);
+			mpq_set_z(divisor,temp);
+
+			current_run = 1;
+
+			for (int i=0;i<stat_rows;i++)
+			{
+				for (int j=0;j<stat_columns;j++)
+				{
+					mpz_set(sqr_sum, stat_sum[i*stat_columns + j]);          /* sqr_sum = sum */
+					mpz_mul(sqr_sum, sqr_sum, stat_sum[i*stat_columns + j]); /* sqr_sum = sum^2 */ 
+
+					mpz_set(temp, stat_sum_of_sqr[i*stat_columns + j]);		 /* temp = sum_of_sqr */
+					mpz_mul_ui(temp, temp, runs);							 /* temp = n * sum_of_sqr */
+					mpz_sub(temp,temp,sqr_sum);								 /* temp = n * sum_of_sqr - sum^2 */
+
+					mpq_set_z(var,temp);									 /* var = n * sum_of_sqr - sum^2 */ 
+					mpq_div(var,var,divisor);								 /* var = (n * sum_of_sqr - sum^2) / (n*(n-1)) */
+					
+					values[j] = sqrt(mpq_get_d(var));
 				}
 				
 				sample(stat_time[i],stat_columns,values,NULL);
