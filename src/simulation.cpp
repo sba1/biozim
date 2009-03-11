@@ -1801,6 +1801,8 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 		}
 	}
 
+	fprintf(out,"\t\tif (callback) callback(tcb1,molecules,userdata);\n");
+
 	/** Calculate initial propensities **/
 	for (i=0;i<sc->num_reactions;i++)
 		simulation_write_propensity_calculation(out,sc,i,start_idx,0);
