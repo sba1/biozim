@@ -42,6 +42,10 @@ struct simulation_context
 	/* Convenience-array of value names, NULL terminated */
 	const char **names;
 
+	/* Value representing the current time */
+	struct value *time;
+	struct event *time_event;
+
 	/* Contains indices to values which have an ODE attached */
 	struct value **unfixed;
 
@@ -67,7 +71,7 @@ struct simulation_context
 	/* The size of the events array */
 	unsigned int num_events;
 
-	/* Indicates the event's trigger state */
+	/* Indicates the event's trigger state. TODO: move into the run context */
 	int *events_active;
 
 	/* Indicates whether there any knockout events */
@@ -121,6 +125,8 @@ struct event
 {
 	ASTNode *trigger;
 
+	int index;
+
 	/* Special knockout stuff */
 	int is_knockout_event;
 	int knocked_out;
@@ -150,6 +156,9 @@ struct reaction
 
 	unsigned int num_products;
 	struct reference *products;
+
+	unsigned int num_events;
+	struct event *events; /**! @brief events that need to be checked when this reaction is fired */
 };
 
 /***********************************************/
@@ -368,6 +377,51 @@ int get_AST_integer_value(ASTNode *node)
 }
 
 /**
+ * Returns all the values that can be found.
+ * 
+ * @param sc
+ * @param node
+ * @param values_ptr
+ * @param values_len_ptr
+ * @return
+ */
+static int simulation_context_get_values(struct simulation_context *sc, ASTNode *node, struct value ***values_ptr, int *values_len_ptr)
+{
+	switch (node->getType())
+	{
+		case	AST_NAME_TIME:	
+		case	AST_NAME:
+				{
+					struct value **values = *values_ptr;
+					int values_len = *values_len_ptr;
+
+					const char *name = node->getName();
+					
+					struct value *v = environment_get_value(&sc->global_env,name);
+					if (v)
+					{
+						values_len++;
+						if (!(values = (struct value**)realloc(values,sizeof(struct value*)*values_len)))
+							return 0;
+						values[values_len-1] = v;
+						
+						*values_ptr = values;
+						*values_len_ptr = values_len;
+					}
+				}
+				break;
+
+		default:
+				for (int i=0;i<node->getNumChildren();i++)
+				{
+					simulation_context_get_values(sc,node->getChild(i),values_ptr,values_len_ptr);
+				}
+				break;
+	}
+	return 1;
+}
+
+/**
  * Create the simulation context from an SBML file.
  *
  * @param filename
@@ -455,6 +509,13 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	{
 		Species *sp = model->getSpecies(i);
 		simulation_context_add_species(sc, sp);
+	}
+
+	/* Add the variable holding the time */
+	if (!(sc->time = environment_get_value(&sc->global_env,"t")))
+	{
+		if (!(sc->time = environment_add_value(&sc->global_env,"t",1)))
+			goto bailout;
 	}
 
 	/* Allocate space for reactions */
@@ -675,6 +736,32 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	ev->num_assignments = numEventAssignments;
 	 	ev->trigger = e->getTrigger()->getMath()->deepCopy();
 
+ 		struct value **values_in_trigger = NULL;
+ 		int values_in_trigger_len = 0;
+	 		
+ 		simulation_context_get_values(sc,ev->trigger,&values_in_trigger,&values_in_trigger_len);
+
+	 	/* Find out on which reactions this event should be considered */
+		for (int l=0;l<values_in_trigger_len;l++)
+		{
+			struct value *vit = values_in_trigger[l];
+			
+			if (vit == sc->time)
+				sc->time_event = ev;
+
+//			for (j=0;j<sc->num_reactions;j++)
+//			{
+//				struct reaction *r = &sc->reactions[j];
+//
+// 		 		for (int k=0;k<r->num_reactants;k++)
+// 		 		{
+// 		 			if (r->reactants[k].value == values_in_trigger[l])
+// 		 			{
+// 		 			}
+// 		 		}
+// 			}
+	 	}
+
 	 	for (j=0;j<numEventAssignments;j++)
 	 	{
 	 		EventAssignment *ea = e->getEventAssignment(j);
@@ -685,6 +772,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 		if (ea->getMath())
 	 			ev->assignments[j].math = ea->getMath()->deepCopy();
 	 	}
+	 	ev->index = i;
 	 	sc->events[i] = ev;
 	}
 
@@ -835,6 +923,7 @@ static double evaluate(struct environment *sc, ASTNode *node)
 		case	AST_REAL: return node->getReal();
 //		case	AST_REAL_E: break;
 ///		case	AST_RATIONAL: break;
+		case	AST_NAME_TIME: /* TODO: Implement time properly */
 		case	AST_NAME:
 				{
 					struct value *v;
@@ -1315,14 +1404,57 @@ static void simulation_context_det_finish_jit(struct simulation_context *sc)
 	sc->dlcheck_trigger = NULL;
 }
 
-/**********************************************************
- Perform the event handling. This encompasses the
- evaluation of its trigger. An event is fired, iff
- it transists from false to true.
+/**
+ * Checkes whether the trigger of the given event.
+ * 
+ * @param sc
+ * @param ev
+ * @param value_space
+ * @return
+ */
+static int simulation_context_check_trigger(struct simulation_context *sc, struct event *ev, double *value_space)
+{
+	double trigger;
+	int fired = 0;
 
- This function returns 0, if no event has occured.
-***********************************************************/
-static int simulation_context_check_trigger(struct simulation_context *sc, double t, double *value_space)
+	trigger = evaluate(&sc->global_env, ev->trigger);
+
+	if (trigger > 0.0)
+	{
+		if (!sc->events_active[ev->index])
+		{
+			/* Event was not active before, fire the event by executing its assignments */
+			for (unsigned int j=0;j<ev->num_assignments;j++)
+			{
+				struct assignment *a = &ev->assignments[j];
+				if (a)
+				{
+					if (verbose)
+						fprintf(stderr,"Setting %s from %lf to %lf\n",a->value->name,a->value->value,evaluate(&sc->global_env,a->math));
+	
+					value_space[a->value->index] = a->value->value = evaluate(&sc->global_env,a->math);
+					a->value->molecules = a->value->value;
+					fired = 1;
+				}
+			}
+			sc->events_active[ev->index] = 1;
+		}
+	} else
+		sc->events_active[ev->index] = 0;
+	return fired;
+}
+
+/**
+ * Perform the event handling. This encompasses the
+ * evaluation of its trigger. An event is fired, iff
+ * it goes from false to true.
+ * 
+ * @param sc
+ * @param t
+ * @param value_space
+ * @return 0, if no event has occurred.
+ */
+static int simulation_context_check_all_triggers(struct simulation_context *sc, double t, double *value_space)
 {
 	if (sc->dlcheck_trigger)
 	{
@@ -1334,33 +1466,37 @@ static int simulation_context_check_trigger(struct simulation_context *sc, doubl
 
 		for (i=0;i<sc->num_events;i++)
 		{
-			double trigger;
-			struct event *ev;
+			struct event *ev = sc->events[i];
 
-			ev = sc->events[i];
-
-			trigger = evaluate(&sc->global_env, ev->trigger);
-
-			if (trigger > 0.0)
-			{
-				if (!sc->events_active[i])
-				{
-					/* Event was active before, fire the event by executing its assignments */
-					for (j=0;j<ev->num_assignments;j++)
-					{
-						struct assignment *a = &ev->assignments[j];
-						if (a)
-						{
-							if (verbose)
-								fprintf(stderr,"Setting %s from %lf to %lf\n",a->value->name,a->value->value,evaluate(&sc->global_env,a->math));
-
-							value_space[a->value->index] = a->value->value = evaluate(&sc->global_env,a->math);
-							fired = 1;
-						}
-					}
-				}
-				sc->events_active[i] = 1;
-			} else sc->events_active[i] = 0;
+			fired |= simulation_context_check_trigger(sc, ev, value_space);
+//			double trigger;
+//			struct event *ev;
+//
+//			ev = sc->events[i];
+//
+//			trigger = evaluate(&sc->global_env, ev->trigger);
+//
+//			if (trigger > 0.0)
+//			{
+//				if (!sc->events_active[i])
+//				{
+//					/* Event was not active before, fire the event by executing its assignments */
+//					for (j=0;j<ev->num_assignments;j++)
+//					{
+//						struct assignment *a = &ev->assignments[j];
+//						if (a)
+//						{
+//							if (verbose)
+//								fprintf(stderr,"Setting %s from %lf to %lf\n",a->value->name,a->value->value,evaluate(&sc->global_env,a->math));
+//
+//							value_space[a->value->index] = a->value->value = evaluate(&sc->global_env,a->math);
+//							a->value->molecules = a->value->value;
+//							fired = 1;
+//						}
+//					}
+//				}
+//				sc->events_active[i] = 1;
+//			} else sc->events_active[i] = 0;
 		}
 
 		return fired;
@@ -1467,6 +1603,7 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 	t = 0;
 	tcb = 0;
 
+timeloop:
 	while (t < tmax)
 	{
 		double a_all = 0;
@@ -1495,6 +1632,7 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 		t += tau;
 		tcb += tau;
 
+		/* Update value space (that is used for the callback function) if we sample */
 		if (tcb > tdelta)
 		{
 			for (unsigned int i=0;i<sc->global_env.num_values;i++)
@@ -1511,8 +1649,31 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 			tcb -= tdelta;
 			tcb1 += tdelta;
 			if (tcb1 > tmax) break;
+			
+			if (sc->time_event)
+			{
+				sc->time->value = tcb1;
+
+				if (simulation_context_check_trigger(sc,sc->time_event,src->value_space))
+				{
+					simulation_run_context_sample(src,tcb1);
+					t = tcb1;
+					tcb = 0;
+					goto timeloop;
+				}
+			}
+
 			simulation_run_context_sample(src,tcb1);
 		}
+
+		if (sc->time_event)
+		{
+			sc->time->value = t;
+			if (simulation_context_check_trigger(sc,sc->time_event,src->value_space))
+				goto timeloop;
+		}
+
+		step++;
 
 		for (unsigned int i=0;i<sc->num_reactions;i++)
 		{
@@ -1524,6 +1685,7 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 
 			if (a_sum >= r2*a_all)
 			{
+				/* Fire reaction */
 				for (unsigned j=0;j<r->num_reactants;j++)
 				{
 					if (!r->reactants[j].value->fixed)
@@ -1544,8 +1706,6 @@ static void simulation_integrate_stochastic(struct simulation_context *sc, struc
 				break;
 			}
 		}
-
-		step++;
 	}
 
 	while (t < tmax)
@@ -1665,16 +1825,9 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	src->sample_func = settings->sample_func;
 	src->sample_str_func = settings->sample_str_func;
 
-//	if (!(sc->value_space = (double*)malloc(sizeof(double)*sc->global_env.num_values)))
-//		return 0;
-//	for (i=0;i<sc->global_env.num_values;i++)
-//		sc->value_space[i] = sc->global_env.values[i]->value;
-
 	if (!(stoich_mat = (int*)malloc(sc->num_reactions * stoich_mat_cols * sizeof(unsigned int))))
 	{
 		simulation_run_context_delete(src);
-//		free(sc->value_space);
-//		sc->value_space = NULL;
 		return 0;
 	}
 	memset(stoich_mat,0,sc->num_reactions * stoich_mat_cols * sizeof(unsigned int));
@@ -1740,8 +1893,6 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	{
 		fprintf(stderr,"Unable to open \"%s\" for output.\n",filename);
 		simulation_run_context_delete(src);
-//		free(sc->value_space);
-//		sc->value_space = NULL;
 		return 0;
 	}
 
@@ -2292,7 +2443,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		exit(-1);
 	}
 
-	simulation_context_check_trigger(sc,0,value_space);
+	simulation_context_check_all_triggers(sc,0,value_space);
 	if (settings->sample_func)
 	{
 		if (!settings->sample_func(0.0,num_values,value_space,NULL))
@@ -2321,7 +2472,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 		for (j=0;j<num_unfixed;j++)
 			value_space[unfixed[j]->index] = NV_Ith_S(yout,j);
 
-		if (simulation_context_check_trigger(sc,tret,value_space))
+		if (simulation_context_check_all_triggers(sc,tret,value_space))
 		{
 			if (verbose)
 				fprintf(stderr,"Reinit at %lf\n",tret);
