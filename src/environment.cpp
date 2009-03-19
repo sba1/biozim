@@ -201,13 +201,11 @@ void *environment_get_value_handle(const struct environment *env, const char *na
  * 
  * @param env
  * @param name
- * @param duplicate_name specify if names should be duplicated 
  * @return
  */
-struct value *environment_add_value(struct environment *env, const char *name, int duplicate_name)
+struct value *environment_add_value(struct environment *env, const char *name)
 {
 	struct value *v;
-	char *name_dupl;
 
 	if (environment_is_value_defined(env,name))
 	{
@@ -215,19 +213,8 @@ struct value *environment_add_value(struct environment *env, const char *name, i
 		return NULL;
 	}
 
-	if (duplicate_name)
-	{
-		if (!(name_dupl = strdup(name)))
-		{
-			fprintf(stderr,"Not enough memory!\n");
-			return NULL;
-		}
-	} else name_dupl = NULL;
-
-
 	if (!(v = (struct value*)malloc(sizeof(struct value))))
 	{
-		free(name_dupl);
 		fprintf(stderr,"Not enough memory!\n");
 		return NULL;
 	}
@@ -238,21 +225,22 @@ struct value *environment_add_value(struct environment *env, const char *name, i
 
 		if (!(va = (struct value**)realloc(env->values,(env->num_values_allocated+10)*2*sizeof(struct value*))))
 		{
-			free(v);
-			free(name_dupl);
 			fprintf(stderr,"Not enough memory!\n");
-			return NULL;
+			goto bailout;
 		}
 		env->num_values_allocated = (env->num_values_allocated + 10) * 2;
 		env->values = va;
 	}
 
 	memset(v,0,sizeof(struct value));
-	if ((v->duplicated_name = name_dupl)) v->name = name_dupl;
-	else v->name = name;
+	if (!(v->name = strdup(name)))
+		goto bailout;
 	v->index = env->num_values;
 	env->values[env->num_values++] = v;
 	return v;
+bailout:
+	free(v);
+	return NULL;
 }
 
 /**
@@ -332,7 +320,7 @@ void environment_deinit(struct environment *env)
 		unsigned int i;
 		for (i=0;i<env->num_values;i++)
 		{
-			free(env->values[i]->duplicated_name);
+			free(env->values[i]->name);
 			free(env->values[i]);
 		}
 	}

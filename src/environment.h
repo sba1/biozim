@@ -6,10 +6,7 @@ class ASTNode;
 struct value
 {
 	/* The name of the value */
-	const char *name;
-
-	/* The duplicated name if any */
-	char *duplicated_name;
+	char *name;
 
 	/* The value's actual value (used for ODEs) */
 	double value;
@@ -78,6 +75,6 @@ double environment_get_value_by_name(const struct environment *env, const char *
 void environment_query_all(const struct environment *env, int (*callback)(struct value *));
 int environment_is_value_defined(const struct environment *env, const char *name);
 void *environment_get_value_handle(const struct environment *env, const char *name);
-struct value *environment_add_value(struct environment *env, const char *name, int duplicate_name);
+struct value *environment_add_value(struct environment *env, const char *name);
 
 #endif

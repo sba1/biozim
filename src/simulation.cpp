@@ -158,7 +158,7 @@ struct reaction
 	struct reference *products;
 
 	unsigned int num_events;
-	struct event *events; /**! @brief events that need to be checked when this reaction is fired */
+	struct event **events; /**! @brief events that need to be checked when this reaction is fired */
 };
 
 /***********************************************/
@@ -173,8 +173,11 @@ struct reaction
 static int environment_add_parameter(struct environment *env, Parameter *p)
 {
 	struct value *v;
+	char name_buf[256];
 
-	if ((v = environment_add_value(env,p->getId().c_str(),1)))
+	snprintf(name_buf,sizeof(name_buf),"___%s",p->getId().c_str());
+
+	if ((v = environment_add_value(env,name_buf)))
 	{
 		v->fixed = 1;
 
@@ -198,9 +201,11 @@ static int environment_add_parameter(struct environment *env, Parameter *p)
 static struct value *simulation_context_add_species(struct simulation_context *sc, Species *s)
 {
 	struct value *v;
+	char name_buf[256];
 
-
-	if (!(v = environment_add_value(&sc->global_env, s->getId().c_str(), 1)))
+	snprintf(name_buf,sizeof(name_buf),"___%s",s->getId().c_str());
+	
+	if (!(v = environment_add_value(&sc->global_env,name_buf)))
 		return NULL;
 
 	if (s->isSetInitialAmount())
@@ -344,9 +349,11 @@ static void simulation_context_add_reference(struct simulation_context *sc, Spec
 		exit(-1);
 }
 
-/*************************************************
- Replaces the POWER with
-*************************************************/
+/**
+ * Replaces the POWER with
+ *  
+ * @param node
+ */
 static void fix_power_function(ASTNode *node)
 {
 	unsigned int i;
@@ -361,10 +368,40 @@ static void fix_power_function(ASTNode *node)
 	}
 }
 
-/*************************************************
- Returns the integer value of the given node
- or -1, if it is no integer value.
-*************************************************/
+/**
+ * Preprend a underscore to all names to avoid possible clashes. 
+ * 
+ * @param 
+ */
+static int fix_names(ASTNode *node)
+{
+	if (node->getType() == AST_NAME || node->getType() == AST_NAME_TIME)
+	{
+		const char *name = node->getName();
+		char *new_name;
+		
+		if (asprintf(&new_name,"___%s",name) == -1)
+			return 0;
+
+		node->setName(new_name);
+		return 1;
+	}
+
+	for (int i=0;i<node->getNumChildren();i++)
+	{
+		ASTNode *n = node->getChild(i);
+		fix_names(n);
+	}
+	
+}
+
+/**
+ * Returns the integer value of the given node
+ * or -1, if it is no integer value.
+ * 
+ * @param node
+ * @return
+ */
 int get_AST_integer_value(ASTNode *node)
 {
 	if (node->getType() == AST_INTEGER)
@@ -436,6 +473,8 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	SBMLDocument *doc;
 	Model *model;
 
+	char name_buf[256];
+
 	unsigned int numSpecies;
 	unsigned int numReactions;
 	unsigned int numParameters;
@@ -496,10 +535,10 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	for (i=0;i<numCompartments;i++)
 	{
 		struct value *v;
-
 		Compartment *c = model->getCompartment(i);
 
-		if (!(v = environment_add_value(&sc->global_env,c->getId().c_str(),1)))
+		snprintf(name_buf,sizeof(name_buf),"___%s",&sc->global_env,c->getId().c_str());
+		if (!(v = environment_add_value(&sc->global_env,name_buf)))
 			goto bailout;
 		environment_set_value_double(v,c->getSize());
 	}
@@ -512,9 +551,9 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	}
 
 	/* Add the variable holding the time */
-	if (!(sc->time = environment_get_value(&sc->global_env,"t")))
+	if (!(sc->time = environment_get_value(&sc->global_env,"___t")))
 	{
-		if (!(sc->time = environment_add_value(&sc->global_env,"t",1)))
+		if (!(sc->time = environment_add_value(&sc->global_env,"___t")))
 			goto bailout;
 	}
 
@@ -557,8 +596,8 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			fprintf(stderr,"Not enough memory available!");
 			goto bailout;
 		}
-
 		fix_power_function(formula);
+		fix_names(formula);
 
 		numParameter = kineticLaw->getNumParameters();
 		numReactants = reaction->getNumReactants();
@@ -578,7 +617,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			ASTNode *new_param;
 
 			/* Note that getId() was getName() before */
-
 			const char *org_id = p->getId().c_str();
 			struct value *v;
 			char *new_id;
@@ -591,7 +629,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 				goto bailout;
 			new_param->setName(new_id);
 
-			if (!(v = environment_add_value(&sc->global_env, new_id, 0)))
+			if (!(v = environment_add_value(&sc->global_env, new_id)))
 			{
 				free(new_id);
 				goto bailout;
@@ -645,7 +683,9 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			SpeciesReference *ref = reaction->getReactant(j);
 			simulation_context_add_reference(sc, ref, formula, AST_MINUS);
 
-			if ((ref_v = environment_get_value(&sc->global_env,ref->getSpecies().c_str())))
+			snprintf(name_buf,sizeof(name_buf),"___%s",ref->getSpecies().c_str());
+
+			if ((ref_v = environment_get_value(&sc->global_env,name_buf)))
 			{
 				sc->reactions[i].reactants[j].value = ref_v;
 				if (!(sc->reactions[i].reactants[j].stoich = get_stoichiometry_ast(ref)))
@@ -654,6 +694,10 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 					goto bailout;
 				}
 				sc->reactions[i].reactants[j].stoich_value = get_AST_integer_value(sc->reactions[i].reactants[j].stoich);;
+			} else
+			{
+				fprintf(stderr,"Couldn't fine variable named \"%s\"\n",name_buf);
+				goto bailout;
 			}
 		}
 
@@ -664,8 +708,10 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 			SpeciesReference *ref = reaction->getProduct(j);
 			simulation_context_add_reference(sc, ref, formula, AST_PLUS);
+			
+			snprintf(name_buf,sizeof(name_buf),"___%s",ref->getSpecies().c_str());
 
-			if ((ref_v = environment_get_value(&sc->global_env,ref->getSpecies().c_str())))
+			if ((ref_v = environment_get_value(&sc->global_env,name_buf)))
 			{
 				sc->reactions[i].products[j].value = ref_v;
 				if (!(sc->reactions[i].products[j].stoich = get_stoichiometry_ast(ref)))
@@ -674,6 +720,10 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 					goto bailout;
 				}
 				sc->reactions[i].products[j].stoich_value = get_AST_integer_value(sc->reactions[i].products[j].stoich);
+			} else
+			{
+				fprintf(stderr,"Couldn't fine variable named \"%s\"\n",name_buf);
+				goto bailout;
 			}
 		}
 	}
@@ -735,39 +785,63 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 	 	ev->num_assignments = numEventAssignments;
 	 	ev->trigger = e->getTrigger()->getMath()->deepCopy();
+	 	fix_names(ev->trigger);
 
  		struct value **values_in_trigger = NULL;
  		int values_in_trigger_len = 0;
 	 		
  		simulation_context_get_values(sc,ev->trigger,&values_in_trigger,&values_in_trigger_len);
 
-	 	/* Find out on which reactions this event should be considered */
+	 	/* Find out on which reactions this event should be considered add a notice to the reaction */
 		for (int l=0;l<values_in_trigger_len;l++)
 		{
 			struct value *vit = values_in_trigger[l];
 			
 			if (vit == sc->time)
+			{
 				sc->time_event = ev;
+				continue;
+			}
 
-//			for (j=0;j<sc->num_reactions;j++)
-//			{
-//				struct reaction *r = &sc->reactions[j];
-//
-// 		 		for (int k=0;k<r->num_reactants;k++)
-// 		 		{
-// 		 			if (r->reactants[k].value == values_in_trigger[l])
-// 		 			{
-// 		 			}
-// 		 		}
-// 			}
+			for (j=0;j<sc->num_reactions;j++)
+			{
+				struct reaction *r = &sc->reactions[j];
+
+ 		 		for (int k=0;k<r->num_reactants;k++)
+ 		 		{
+ 		 			if (r->reactants[k].value == values_in_trigger[l])
+ 		 			{
+ 		 				r->events = (struct event**)realloc(r->events,(r->num_events+1)*sizeof(struct event*));
+ 		 				r->events[r->num_events] = ev;
+ 		 				r->num_events++;
+ 		 			}
+ 		 		}
+
+ 		 		for (int k=0;k<r->num_products;k++)
+ 		 		{
+ 		 			if (r->products[k].value == values_in_trigger[l])
+ 		 			{
+ 		 				r->events = (struct event**)realloc(r->events,(r->num_events+1)*sizeof(struct event*));
+ 		 				r->events[r->num_events] = ev;
+ 		 				r->num_events++;
+ 		 			}
+ 		 		}
+ 			}
 	 	}
 
 	 	for (j=0;j<numEventAssignments;j++)
 	 	{
 	 		EventAssignment *ea = e->getEventAssignment(j);
 	 		const char *name = ea->getVariable().c_str();
+	 		
+	 		snprintf(name_buf,sizeof(name_buf),"___%s",name);
 
-	 		ev->assignments[j].value = environment_get_value(&sc->global_env, name);
+	 		if (!(ev->assignments[j].value = environment_get_value(&sc->global_env, name_buf)))
+	 		{
+	 			fprintf(stderr,"Couldn't find variable \"%s\"\n",name_buf);
+	 			goto bailout;
+	 		}
+	 		
 
 	 		if (ea->getMath())
 	 			ev->assignments[j].math = ea->getMath()->deepCopy();
@@ -1180,7 +1254,12 @@ const char **simulation_get_value_names(struct simulation_context *sc)
 		return NULL;
 
 	for (i=0;i<sc->global_env.num_values;i++)
-		sc->names[i] = sc->global_env.values[i]->name;
+	{
+		char *name = sc->global_env.values[i]->name;
+		if (!strncmp(name,"___",3)) name += 3;
+		sc->names[i] = name;
+	}
+
 	if (sc->has_knockout_events)
 		sc->names[i++] = "affected";
 	sc->names[i] = NULL;
@@ -1431,7 +1510,7 @@ static int simulation_context_check_trigger(struct simulation_context *sc, struc
 				{
 					if (verbose)
 						fprintf(stderr,"Setting %s from %lf to %lf\n",a->value->name,a->value->value,evaluate(&sc->global_env,a->math));
-	
+
 					value_space[a->value->index] = a->value->value = evaluate(&sc->global_env,a->math);
 					a->value->molecules = a->value->value;
 					fired = 1;
@@ -1703,6 +1782,10 @@ timeloop:
 						r->products[j].value->value = r->products[j].value->molecules;
 					}
 				}
+
+				/* Check if any trigger of an attached event fires */
+				for (int j=0;j<r->num_events;j++)
+					simulation_context_check_trigger(sc,r->events[j],src->value_space);
 				break;
 			}
 		}
@@ -1738,6 +1821,20 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
 	}
 
 	return simulation_run_context_sample(src,t);
+}
+
+/**
+ * Make the variable name usable in a C "script".
+ * 
+ * @param buf
+ * @param buf_len
+ * @param name
+ */
+static char *escape_variable_name(char *buf, int buf_len, const char *name)
+{
+	snprintf(buf,sizeof(buf_len),"_%s",name);
+	
+	return buf;
 }
 
 /**********************************************************
@@ -1788,7 +1885,7 @@ static void simulation_write_propensity_calculation(FILE *out, struct simulation
 }
 
 /**
- * Integrates the simulation using stochastic simulator.
+ * Integrates the model using a stochastic simulator.
  *
  * @param sc
  * @param settings
@@ -1800,7 +1897,7 @@ static void simulation_write_propensity_calculation(FILE *out, struct simulation
 static int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct integration_settings *settings, int gen_jit)
 {
 	unsigned int i,j;
-
+	
 	double t;
 	double tmax = settings->time;
 
