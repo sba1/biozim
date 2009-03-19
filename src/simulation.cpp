@@ -2001,6 +2001,7 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 
 	/* Build the source code */
 	fprintf(out,"#include <stdio.h>\n");
+	fprintf(out,"#include <string.h>\n");
 	fprintf(out,"#include <stdlib.h>\n");
 	fprintf(out,"#include <inttypes.h>\n");
 	fprintf(out,"#include <math.h>\n\n");
@@ -2008,6 +2009,10 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	fprintf(out,"#define child1(i) (2*(i)+1)\n");
 	fprintf(out,"#define child2(i) (2*(i)+2)\n");
 	fprintf(out,"#define parent(i) (((i)-1)/2)\n\n");
+	
+	fprintf(out,"#define gt(a,b) (a)>(b)\n");
+	fprintf(out,"#define geq(a,b) (a)>=(b)\n");
+	fprintf(out,"#define lt(a,b) (a)<(b)\n\n");
 
 	fprintf(out,"double gillespie(double tmax, int steps, int (*callback)(double t, int *states, void *userdata), void *userdata)\n");
 	fprintf(out,"{\n");
@@ -2032,6 +2037,11 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	fprintf(out,"\t}\n");
 #endif
 
+	if (sc->num_events)
+	{
+		fprintf(out,"\tint events_active[%d];\n",sc->num_events);
+		fprintf(out,"\tmemset(events_active,0,sizeof(events_active));\n");
+	}
 	fprintf(out,"\tint molecules[%d];\n",sc->global_env.num_values);
 
 	for (i=0;i<sc->global_env.num_values;i++)
@@ -2063,7 +2073,9 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	}
 #endif
 
-	fprintf(out,"\n\twhile (t<tmax)\n");
+	fprintf(out,"\n");
+	fprintf(out,"\ttimeloop:\n");
+	fprintf(out,"\twhile (t<tmax)\n");
 	fprintf(out,"\t{\n");
 
 	/** Second step: Calculate a_all **/
@@ -2075,6 +2087,7 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 		fprintf(out," + a[%d]",i);
 	fprintf(out,";\n");
 #endif
+
 	fprintf(out,"if (a_all == 0) break;\n");
 
 	/** Third step: Draw random numbers **/
@@ -2091,7 +2104,76 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	fprintf(out,"\t\t\ttcb -= tdelta;\n");
 	fprintf(out,"\t\t\ttcb1 += tdelta;\n");
 	fprintf(out,"\t\t\tif (tcb1 > tmax) break;\n");
+
+	if (sc->time_event)
+	{
+		struct event *ev = sc->time_event;
+
+		fprintf(out,"\t\t\t\t%s=tcb1;\n",sc->time->name);
+		/* Trigger */
+		fprintf(out,"\t\t\t\tif (%s)\n",SBML_formulaToString(ev->trigger));
+		fprintf(out,"\t\t\t\t{\n");
+		
+		fprintf(out,"\t\t\t\t\tif (!events_active[%d])\n",ev->index);
+		fprintf(out,"\t\t\t\t\t{\n");
+		fprintf(out,"\t\t\t\t\t\tevents_active[%d]=1;",ev->index);
+
+		/* Perform event action */
+		int ev_changed[sc->num_reactions];
+		unsigned int ev_changed_list[sc->num_reactions];
+		unsigned int ev_changed_list_size = 0;
+		memset(ev_changed,0,sizeof(ev_changed));
+
+		for (int a=0;a<ev->num_assignments;a++)
+		{
+			struct value *sp = ev->assignments[a].value;
+			fprintf(out,"\t\t\t\t\t%s=%s;\n",sp->name,SBML_formulaToString(ev->assignments[a].math));
+
+			int *spr = species_participating_in_which_reactions[sp->index];
+			for (unsigned int k=0;spr[k]!=-1;k++)
+			{
+				if (!ev_changed[spr[k]])
+				{
+					ev_changed[spr[k]] = 1;
+					ev_changed_list[ev_changed_list_size++] = spr[k];
+				}
+			}
+		}
+
+#ifdef USE_BINARY
+		/* Bottom-up */
+		int ev_changed_array[leafs-1];
+		memset(ev_changed_array,0,sizeof(ev_changed_array));
+#endif
+		for (unsigned int j=0;j<ev_changed_list_size;j++)
+		{
+			simulation_write_propensity_calculation(out,sc,ev_changed_list[j], start_idx,1);
+#ifdef USE_BINARY
+			int n = ev_changed_list[j] + leafs - 1;
+	
+			while ((n = parent(n)))
+				ev_changed_array[n] = 1;
+			ev_changed_array[0] = 1; /* Mark the root */
+#endif
+		}
+
+#ifdef USE_BINARY
+		for (int l=leafs-2;l>=0;l--)
+		{
+			if (ev_changed_array[l])
+				fprintf(out,"\t\ta[%d] = a[%d] + a[%d];\n",l,child1(l),child2(l));
+		}
+#endif
+		fprintf(out,"\t\t\t\t\tif (callback) callback(tcb1,molecules,userdata);\n");
+		fprintf(out,"\t\t\t\t\tt = tcb1;\n");
+		fprintf(out,"\t\t\t\t\ttcb = 0;\n");
+		fprintf(out,"\t\t\t\t\tgoto timeloop;");
+		fprintf(out,"\t\t\t\t}\n");
+		fprintf(out,"\t\t\t\t\t} else events_active[%d]=0;\n",ev->index);
+	}
+
 	fprintf(out,"\t\t\tif (callback) callback(tcb1,molecules,userdata);\n");
+
 	fprintf(out,"\t\t}\n");
 
 	/** Fourth step: Find the fired reaction **/
@@ -2161,6 +2243,61 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 			}
 		}
 
+		/* TODO: Refactorize */
+		for (int j=0;j<r->num_events;j++)
+		{
+			struct event *ev = r->events[j];
+
+			/* Trigger */
+			fprintf(out,"\t\t\t\tif (%s)\n",SBML_formulaToString(ev->trigger));
+			fprintf(out,"\t\t\t\t{\n");
+
+			/* Perform event action */
+			int ev_changed[sc->num_reactions];
+			unsigned int ev_changed_list[sc->num_reactions];
+			unsigned int ev_changed_list_size = 0;
+			memset(ev_changed,0,sizeof(ev_changed));
+
+			for (int a=0;a<ev->num_assignments;a++)
+			{
+				struct value *sp = ev->assignments[a].value;
+				fprintf(out,"\t\t\t\t\t%s=%s;\n",sp->name,SBML_formulaToString(ev->assignments[a].math));
+
+				int *spr = species_participating_in_which_reactions[sp->index];
+				for (unsigned int k=0;spr[k]!=-1;k++)
+				{
+					if (!ev_changed[spr[k]])
+					{
+						ev_changed[spr[k]] = 1;
+						ev_changed_list[ev_changed_list_size++] = spr[k];
+						simulation_write_propensity_calculation(out, sc, spr[k], start_idx, 1);
+					}
+				}
+			}
+
+#ifdef USE_BINARY
+			/* Bottom-up */
+			int ev_changed_array[leafs-1];
+			memset(ev_changed_array,0,sizeof(ev_changed_array));
+
+			for (unsigned int j=0;j<ev_changed_list_size;j++)
+			{
+				int n = ev_changed_list[j] + leafs - 1;
+		
+				while ((n = parent(n)))
+					ev_changed_array[n] = 1;
+			}
+			ev_changed_array[0] = 1; /* Mark the root */
+
+			for (int l=leafs-2;l>=0;l--)
+			{
+				if (ev_changed_array[l])
+					fprintf(out,"\t\ta[%d] = a[%d] + a[%d];\n",l,child1(l),child2(l));
+			}
+#endif
+			fprintf(out,"\t\t\t\t}\n");
+		}
+
 #ifdef USE_BINARY
 		int changed_array[leafs-1];
 		memset(changed_array,0,sizeof(changed_array));
@@ -2183,9 +2320,7 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 		for (int l=leafs-2;l>=0;l--)
 		{
 			if (changed_array[l])
-			{
 				fprintf(out,"\t\ta[%d] = a[%d] + a[%d];\n",l,child1(l),child2(l));
-			}
 		}
 #endif
 
@@ -2242,6 +2377,9 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 //			free(sc->value_space);
 //			sc->value_space = NULL;
 			return 0;
+		} else
+		{
+			fprintf(stderr,"Couldn't open generated file: %s\n",dlerror());
 		}
 	}
 
@@ -2429,6 +2567,7 @@ void simulation_integrate(struct simulation_context *sc, struct integration_sett
 
 		if (!sc->dlgillespie && !settings->force_interpreted)
 			simulation_integrate_stochastic_quick(sc, settings, 1);
+
 		if (sc->dlgillespie)
 		{
 			struct simulation_run_context *src;
