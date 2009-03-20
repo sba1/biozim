@@ -1,4 +1,6 @@
+#include <limits.h>
 #include <math.h>
+#include <search.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +17,11 @@
 /* Own headers */
 #include "simulation.h"
 #include "gnuplot_i.h"
+
+/********************************************************/
+
+#define MAX(a,b) ((a)>(b)?(a):(b))
+#define MIN(a,b) ((a)<(b)?(a):(b))
 
 /********************************************************/
 
@@ -55,8 +62,11 @@ static double error;
 /** @brief Number of total samples to be taken */
 static int sample_steps;
 
-/** @brief Species if the result should be plotted */
+/** @brief Specifies if the result should be plotted */
 static int plot;
+
+/** @brief Specifies if the distribution should be plotted */
+static int plot_distribution;
 
 struct variable_assignment *va_first;
 struct variable_assignment *va_last;
@@ -120,6 +130,7 @@ static void usage(char *name)
 			"\t    --output-time         outputs the current time (stderr).\n"
 			"\t    --plot [sp1,...,spn]  plots the results using gnuplot. Optionally, you can specify\n"
 			"\t                          the species to be plotted.\n"
+			"\t    --plot-distribution   plots the result as distribution.\n"
 			"\t    --runs                specifies the runs to be performed when in stochastic mode.\n"
 			"\t    --sample-steps        the number of sample steps (defaults to 5000).\n"
 			"\t    --stddev              specifies whether the standard deviation should be calculated when runs > 1.\n"
@@ -135,7 +146,7 @@ static void usage(char *name)
 
 
 /**
- * Splits the given character sequence.
+ * Splits the given character sequence. The returned array is NULL terminated.
  *
  * @param str
  * @param c
@@ -186,7 +197,7 @@ static char **strsplit(char *str, char c)
  * @param str
  * @return
  */
-static int strindex(const char **array, const char *str)
+static int strindex(const char * const *array, const char *str)
 {
 	int i = 0;
 
@@ -293,6 +304,9 @@ static void parse_args(int argc, char *argv[])
 			}
 			if (!(plot_species = strsplit(nr_arg,',')))
 				fprintf(stderr,"Could not determine the name of species to be plotted!");
+		} else if (!strcmp(argv[i],"--plot-distribution"))
+		{
+			plot_distribution = 1;
 		} else if (!strcmp(argv[i],"--output-time"))
 		{
 			output_time = 1;
@@ -448,12 +462,71 @@ struct sample
 static struct sample *samples_first;
 static struct sample *samples_last;
 static int samples_total;
+static int current_slot;
+static int *samples_max_values;
+static int *samples_min_values;
+
+static void **hist_vector; /* every element contains a binary tree corresponding to a time slot and a variable */
+static void ***hist; /* time slots are rows, values are columns */
+static int *max_count;
+
+struct hist_item
+{
+	int value;
+	int count;
+};
+
+int hist_item_compare(const void *pa, const void *pb)
+{
+	const struct hist_item *h1 = (struct hist_item*)pa;
+	const struct hist_item *h2 = (struct hist_item*)pb;
+	
+//	printf("%p(%d) %p(%d)\n",h1,h1->value,h2,h2->value);
+	return h1->value - h2->value;
+}
 
 static int track_sample(double time, int num_values, double *values)
 {
 	struct sample *current;
 	int i;
-	
+
+	/* Allocate memory when called for the first time */
+	if (!samples_min_values)
+	{
+		if ((samples_min_values = (int*)malloc(num_values * sizeof(int))))
+		{
+			for (i=0;i<num_values;i++)
+				samples_min_values[i] = INT_MAX;
+		}
+	}
+	if (!samples_max_values)
+	{
+		if ((samples_max_values = (int*)malloc(num_values * sizeof(int))))
+		{
+			for (i=0;i<num_values;i++)
+				samples_min_values[i] = 0;
+		}
+	}
+
+	if (!hist_vector && plot_distribution)
+	{
+		if ((hist_vector = (void**)malloc((sample_steps+1)*num_values*sizeof(hist_vector[0]))))
+		{
+			memset(hist_vector,0,(sample_steps+1)*num_values*sizeof(hist_vector[0]));
+			if ((hist = (void***)malloc((sample_steps+1)*sizeof(hist[0]))))
+			{
+				for (i=0;i<sample_steps+1;i++)
+					hist[i] = &hist_vector[i*num_values];
+			}
+		}
+	}
+
+	if (!max_count && plot_distribution)
+	{
+		if ((max_count = (int*)malloc(num_values*sizeof(int))))
+			memset(max_count,0,num_values*sizeof(int));
+	}
+
 	if (!(current = (struct sample*)malloc(sizeof(*current))))
 		return 0;
 	memset(current,0,sizeof(*current));
@@ -465,6 +538,49 @@ static int track_sample(double time, int num_values, double *values)
 	current->num_values = num_values;
 	for (i=0;i<num_values;i++)
 		current->values[i] = values[i];
+
+	if (samples_min_values)
+		for (i=0;i<num_values;i++)
+			samples_min_values[i] = MIN(values[i],samples_min_values[i]);
+
+	if (samples_max_values)
+		for (i=0;i<num_values;i++)
+			samples_max_values[i] = MAX(values[i],samples_max_values[i]);
+
+	if (hist)
+	{
+		for (i=0;i<num_values;i++)
+		{
+			struct hist_item item;
+			item.value = values[i];
+			item.count = 1;
+
+			struct hist_item **item_found;
+			
+			if (!(item_found = (struct hist_item**)tfind(&item,&hist[current_slot][i],hist_item_compare)))
+			{
+				struct hist_item *new_item;
+				
+				if ((new_item = (struct hist_item*)malloc(sizeof(struct hist_item))))
+				{
+					new_item->count = 1;
+					new_item->value = item.value;
+					
+					if (!tsearch(new_item,&hist[current_slot][i],hist_item_compare))
+						fprintf(stderr,"Unable to add an item\n");
+				}
+			} else
+			{
+				(*item_found)->count++;
+				
+				if (max_count)
+				{
+					if ((*item_found)->count > max_count[i])
+						max_count[i] = (*item_found)->count; 
+				}
+			}
+		}
+	}
 	current->time = time;
 
 	/* Enqueue sample */
@@ -473,6 +589,7 @@ static int track_sample(double time, int num_values, double *values)
 		samples_last->next = current;
 	samples_last = current;
 	samples_total++;
+	current_slot++;
 
 	return 1;
 bailout:
@@ -644,6 +761,46 @@ static int print_value(struct value *v)
 	return 1;
 }
 
+static int hist_item_count = 0;
+
+static void hist_item_count_action(const void *nodep, const VISIT which, const int depth)
+{
+	struct hist_item *data;
+
+	switch (which)
+	{
+	case	preorder:
+			break;
+	case	endorder:
+			break;
+	case	postorder:
+	case	leaf:
+			hist_item_count++;
+			break;
+	}
+}
+
+static int hist_item_current;
+static struct hist_item **hist_item_array;
+
+static void hist_item_linerize_action(const void *nodep, const VISIT which, const int depth)
+{
+	struct hist_item *data;
+
+	switch (which)
+	{
+	case	preorder:
+			break;
+	case	endorder:
+			break;
+	case	postorder:
+	case	leaf:
+			data = *(struct hist_item**)nodep;
+			hist_item_array[hist_item_current++] = data;
+			break;
+	}
+}
+
 /**
  * Main entry
  *
@@ -743,6 +900,7 @@ int main(int argc, char **argv)
 	for (current_run=0;current_run<runs;current_run++)
 	{
 		stat_row = 0;
+		current_slot = 0;
 		simulation_context_reset(sc);
 		simulation_integrate(sc,&settings);
 	}
@@ -838,26 +996,73 @@ int main(int argc, char **argv)
 			goto bailout;
 		}
 
-		if (plot_species)
+		if (plot_distribution)
 		{
-			int j;
-
-			for (j=0;plot_species[j];j++)
+			for (int i=0;i<samples_first->num_values;i++)
 			{
-				int idx = strindex(names,plot_species[j]);
-				if (idx == -1)
+				if (plot_species && strindex(plot_species,names[i]) == -1) continue;
+
+				int obj_index = 2;
+
+				gnuplot_cmd(ctrl,"set object 1 rect at 0,0 size %d,%d fc rgbcolor \"#000000\" lw 0\n",current_slot*2,samples_max_values[i]*2);
+
+				/* current slot holds the last time slot */
+				for (int j=0;j<current_slot;j++)
 				{
-					fprintf(stderr,"Species \"%s\" couldn't not be found!\n",plot_species[j]);
-					continue;
+					void *root = hist[j][i];
+					
+					hist_item_count = 0;
+					twalk(root,hist_item_count_action);
+
+					free(hist_item_array);
+					if ((hist_item_array = (struct hist_item**)malloc(hist_item_count * sizeof(struct hist_item*))))
+					{
+						hist_item_current = 0;
+						twalk(root,hist_item_linerize_action);
+
+						for (int k=0;k<hist_item_count;k++)
+						{
+							struct hist_item *hi = hist_item_array[k];
+							double x = j;
+							double y = hi->value;
+
+							int r = 255 * (log(hi->count) / log(max_count[i]));
+							
+							int g = 0;
+							int b = 0;
+							
+//							fprintf(stderr,"set object %d rect at %g,%g size 1.1,1.1 fc rgbcolor \"#%02x%02x%02x\" lw 0\n",obj_index,x+0.5,y+0.5,r,g,b);
+							gnuplot_cmd(ctrl,"set object %d rect at %g,%g size 1.1,1.1 fc rgbcolor \"#%02x%02x%02x\" lw 0\n",obj_index,x+0.5,y+0.5,r,g,b);
+							obj_index++;
+						}
+					}
 				}
-				plot_samples(ctrl,idx,names[idx],x,y);
+				
+				gnuplot_cmd(ctrl,"plot [0:%d] [0:%d] 0",current_slot,samples_max_values[i]);
 			}
 		} else
 		{
-			int idx;
-
-			for (idx=0;idx<samples_first->num_values;idx++)
-				plot_samples(ctrl,idx,names[idx],x,y);
+			if (plot_species)
+			{
+				int j;
+	
+				for (j=0;plot_species[j];j++)
+				{
+					int idx = strindex(names,plot_species[j]);
+					if (idx == -1)
+					{
+						fprintf(stderr,"Species \"%s\" couldn't be found!\n",plot_species[j]);
+						continue;
+					}
+					plot_samples(ctrl,idx,names[idx],x,y);
+				}
+			} else
+			{
+				int idx;
+	
+				for (idx=0;idx<samples_first->num_values;idx++)
+					plot_samples(ctrl,idx,names[idx],x,y);
+			}
 		}
 
 		fprintf(stderr,"Press Enter to quit!\n");
