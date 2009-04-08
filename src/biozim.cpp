@@ -337,13 +337,15 @@ static void parse_args(int argc, char *argv[])
 				exit(-1);
 			}
 
-			if (!(name = (char*)malloc(nend-nr_arg)))
+			if (!(name = (char*)malloc(nend-nr_arg + 4)))
 			{
 				fprintf(stderr,"Not enough memory!");
 				exit(-1);
 			}
 
-			strncpy(name,nr_arg,nend-nr_arg);
+			name[0] = name[1] = name[2] = '_';
+			strncpy(name+3,nr_arg,nend-nr_arg);
+			name[3+nend-nr_arg] = 0;
 			value = strtod(nend+1, NULL);
 
 			if (!(sva = (struct variable_assignment*)malloc(sizeof(*sva))))
@@ -1031,7 +1033,7 @@ int main(int argc, char **argv)
 							int g = 0;
 							int b = 0;
 							
-//							fprintf(stderr,"set object %d rect at %g,%g size 1.1,1.1 fc rgbcolor \"#%02x%02x%02x\" lw 0\n",obj_index,x+0.5,y+0.5,r,g,b);
+							fprintf(stderr,"set object %d rect at %g,%g size 1.1,1.1 fc rgbcolor \"#%02x%02x%02x\" lw 0\n",obj_index,x+0.5,y+0.5,r,g,b);
 							gnuplot_cmd(ctrl,"set object %d rect at %g,%g size 1.1,1.1 fc rgbcolor \"#%02x%02x%02x\" lw 0\n",obj_index,x+0.5,y+0.5,r,g,b);
 							obj_index++;
 						}
