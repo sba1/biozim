@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level2/version3" level="2" version="3">
+<model id="model">
+<listOfSpecies>
+<species id="RNApoly" boundaryCondition="false" initialAmount="100.0" compartment="cell" />
+<species id="oG" boundaryCondition="false" initialAmount="1.0" compartment="cell" />
+<species id="moG" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+<species id="G" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+</listOfSpecies>
+<listOfParameters>
+ <parameter id="degradation_G" value="1.925408834888737E-4"/>
+ <parameter id="translation_oG" value="0.11552453009332421"/>
+ <parameter id="degradation_moG" value="0.0057762265046662105"/>
+ <parameter id="transcription_oG0" value="0.01"/>
+</listOfParameters>
+<listOfReactions>
+<reaction id="oGmoG" name="Transcription from oG of moG">
+ <listOfReactants>
+  <speciesReference species="oG" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="oG" stoichiometry="1"/>
+  <speciesReference species="moG" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>transcription_oG0</ci>
+    <ci>oG</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="degmoG" name="Degeneration of moG">
+ <listOfReactants>
+  <speciesReference species="moG" stoichiometry="1"/>
+ </listOfReactants>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply><times/>
+   <ci>degradation_moG</ci>
+   <ci>moG</ci>
+  </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="moGG" name="Translation of moG to G">
+ <listOfReactants>
+  <speciesReference species="moG" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="G" stoichiometry="1"/>
+  <speciesReference species="moG" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>translation_oG</ci>
+    <ci>moG</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="degG" name="Degeneration of G">
+ <listOfReactants>
+  <speciesReference species="G" stoichiometry="1"/>
+ </listOfReactants>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply><times/>
+   <ci>degradation_G</ci>
+   <ci>G</ci>
+  </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+</listOfReactions>
+
+</model>
+</sbml>

@@ -1,0 +1,509 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level2/version3" level="2" version="3">
+<model id="model">
+<listOfSpecies>
+<species id="RNApoly" boundaryCondition="false" initialAmount="100.0" compartment="cell" />
+<species id="pA" boundaryCondition="false" initialAmount="1.0" compartment="cell" />
+<species id="mpA" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+<species id="pB" boundaryCondition="false" initialAmount="1.0" compartment="cell" />
+<species id="pB_A" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+<species id="mpB" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+<species id="pC" boundaryCondition="false" initialAmount="1.0" compartment="cell" />
+<species id="pC_A" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+<species id="pC_A_B" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+<species id="pC_B" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+<species id="mpC" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+<species id="A" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+<species id="B" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+<species id="C" boundaryCondition="false" initialAmount="0.0" compartment="cell" />
+</listOfSpecies>
+<listOfParameters>
+ <parameter id="tr" value="0.0057762265046662105"/>
+ <parameter id="translation_pB" value="0.0"/>
+ <parameter id="translation_pC" value="0.0"/>
+ <parameter id="burst" value="20.0"/>
+ <parameter id="transcription_pC3" value="0.0"/>
+ <parameter id="degradation_C" value="1.925408834888737E-4"/>
+ <parameter id="transcription_pC2" value="0.0"/>
+ <parameter id="degradation_B" value="1.925408834888737E-4"/>
+ <parameter id="transcription_pC1" value="0.01"/>
+ <parameter id="degradation_A" value="1.925408834888737E-4"/>
+ <parameter id="transcription_pC0" value="0.0"/>
+ <parameter id="transcription_pA0" value="0.01"/>
+ <parameter id="transcription_pB0" value="0.0"/>
+ <parameter id="translation_pA" value="0.0"/>
+ <parameter id="transcription_pB1" value="0.01"/>
+ <parameter id="degradation_mpA" value="0.0057762265046662105"/>
+ <parameter id="degradation_mpB" value="0.0057762265046662105"/>
+ <parameter id="degradation_mpC" value="0.0057762265046662105"/>
+</listOfParameters>
+<listOfInitialAssignments>
+<initialAssignment symbol="translation_pB">
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+<apply><times/><ci>burst</ci><ci>tr</ci></apply>
+ </math>
+</initialAssignment>
+<initialAssignment symbol="translation_pC">
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+<apply><times/><ci>burst</ci><ci>tr</ci></apply>
+ </math>
+</initialAssignment>
+<initialAssignment symbol="translation_pA">
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+<apply><times/><ci>burst</ci><ci>tr</ci></apply>
+ </math>
+</initialAssignment>
+</listOfInitialAssignments>
+<listOfReactions>
+<reaction id="pAmpA" name="Transcription from pA of mpA">
+ <listOfReactants>
+  <speciesReference species="pA" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pA" stoichiometry="1"/>
+  <speciesReference species="mpA" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>transcription_pA0</ci>
+    <ci>pA</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="degmpA" name="Degeneration of mpA">
+ <listOfReactants>
+  <speciesReference species="mpA" stoichiometry="1"/>
+ </listOfReactants>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply><times/>
+   <ci>degradation_mpA</ci>
+   <ci>mpA</ci>
+  </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="mpAA" name="Translation of mpA to A">
+ <listOfReactants>
+  <speciesReference species="mpA" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="A" stoichiometry="1"/>
+  <speciesReference species="mpA" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>translation_pA</ci>
+    <ci>mpA</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pBApB_A" name="Transcription factor A binds to pB to pB_A ">
+ <listOfReactants>
+  <speciesReference species="pB" stoichiometry="1"/>
+  <speciesReference species="A" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pB_A" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+ <apply>
+  <times/>
+  <cn>7.5E-4</cn>
+  <apply>
+   <times/>
+   <ci>pB</ci>   <ci>A</ci>
+  </apply>
+ </apply>
+ </math>
+ </kineticLaw>
+</reaction>
+<reaction id="rel_pBApB_A" name="Transcription factor A is released from pB_A to pB ">
+ <listOfReactants>
+  <speciesReference species="pB_A" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pB" stoichiometry="1"/>
+  <speciesReference species="A" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+ <apply>
+  <times/>
+   <cn>0.39</cn>   <ci>pB_A</ci>
+ </apply>
+ </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pBmpB" name="Transcription from pB of mpB">
+ <listOfReactants>
+  <speciesReference species="pB" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pB" stoichiometry="1"/>
+  <speciesReference species="mpB" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>transcription_pB0</ci>
+    <ci>pB</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pB_AmpB" name="Transcription from pB_A of mpB">
+ <listOfReactants>
+  <speciesReference species="pB_A" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pB_A" stoichiometry="1"/>
+  <speciesReference species="mpB" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>transcription_pB1</ci>
+    <ci>pB_A</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="degmpB" name="Degeneration of mpB">
+ <listOfReactants>
+  <speciesReference species="mpB" stoichiometry="1"/>
+ </listOfReactants>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply><times/>
+   <ci>degradation_mpB</ci>
+   <ci>mpB</ci>
+  </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="mpBB" name="Translation of mpB to B">
+ <listOfReactants>
+  <speciesReference species="mpB" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="B" stoichiometry="1"/>
+  <speciesReference species="mpB" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>translation_pB</ci>
+    <ci>mpB</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pCApC_A" name="Transcription factor A binds to pC to pC_A ">
+ <listOfReactants>
+  <speciesReference species="pC" stoichiometry="1"/>
+  <speciesReference species="A" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC_A" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+ <apply>
+  <times/>
+  <cn>0.075</cn>
+  <apply>
+   <times/>
+   <ci>pC</ci>   <ci>A</ci>
+  </apply>
+ </apply>
+ </math>
+ </kineticLaw>
+</reaction>
+<reaction id="rel_pCApC_A" name="Transcription factor A is released from pC_A to pC ">
+ <listOfReactants>
+  <speciesReference species="pC_A" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC" stoichiometry="1"/>
+  <speciesReference species="A" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+ <apply>
+  <times/>
+   <cn>0.39</cn>   <ci>pC_A</ci>
+ </apply>
+ </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pC_BApC_A_B" name="Transcription factor A binds to pC_B to pC_A_B ">
+ <listOfReactants>
+  <speciesReference species="pC_B" stoichiometry="1"/>
+  <speciesReference species="A" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC_A_B" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+ <apply>
+  <times/>
+  <cn>0.075</cn>
+  <apply>
+   <times/>
+   <ci>pC_B</ci>   <ci>A</ci>
+  </apply>
+ </apply>
+ </math>
+ </kineticLaw>
+</reaction>
+<reaction id="rel_pC_BApC_A_B" name="Transcription factor A is released from pC_A_B to pC_B ">
+ <listOfReactants>
+  <speciesReference species="pC_A_B" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC_B" stoichiometry="1"/>
+  <speciesReference species="A" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+ <apply>
+  <times/>
+   <cn>0.39</cn>   <ci>pC_A_B</ci>
+ </apply>
+ </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pC_ABpC_A_B" name="Transcription factor B binds to pC_A to pC_A_B ">
+ <listOfReactants>
+  <speciesReference species="pC_A" stoichiometry="1"/>
+  <speciesReference species="B" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC_A_B" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+ <apply>
+  <times/>
+  <cn>0.075</cn>
+  <apply>
+   <times/>
+   <ci>pC_A</ci>   <ci>B</ci>
+  </apply>
+ </apply>
+ </math>
+ </kineticLaw>
+</reaction>
+<reaction id="rel_pC_ABpC_A_B" name="Transcription factor B is released from pC_A_B to pC_A ">
+ <listOfReactants>
+  <speciesReference species="pC_A_B" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC_A" stoichiometry="1"/>
+  <speciesReference species="B" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+ <apply>
+  <times/>
+   <cn>0.39</cn>   <ci>pC_A_B</ci>
+ </apply>
+ </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pCBpC_B" name="Transcription factor B binds to pC to pC_B ">
+ <listOfReactants>
+  <speciesReference species="pC" stoichiometry="1"/>
+  <speciesReference species="B" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC_B" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+ <apply>
+  <times/>
+  <cn>0.075</cn>
+  <apply>
+   <times/>
+   <ci>pC</ci>   <ci>B</ci>
+  </apply>
+ </apply>
+ </math>
+ </kineticLaw>
+</reaction>
+<reaction id="rel_pCBpC_B" name="Transcription factor B is released from pC_B to pC ">
+ <listOfReactants>
+  <speciesReference species="pC_B" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC" stoichiometry="1"/>
+  <speciesReference species="B" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+ <math xmlns="http://www.w3.org/1998/Math/MathML">
+ <apply>
+  <times/>
+   <cn>0.39</cn>   <ci>pC_B</ci>
+ </apply>
+ </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pCmpC" name="Transcription from pC of mpC">
+ <listOfReactants>
+  <speciesReference species="pC" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC" stoichiometry="1"/>
+  <speciesReference species="mpC" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>transcription_pC0</ci>
+    <ci>pC</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pC_AmpC" name="Transcription from pC_A of mpC">
+ <listOfReactants>
+  <speciesReference species="pC_A" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC_A" stoichiometry="1"/>
+  <speciesReference species="mpC" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>transcription_pC1</ci>
+    <ci>pC_A</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pC_A_BmpC" name="Transcription from pC_A_B of mpC">
+ <listOfReactants>
+  <speciesReference species="pC_A_B" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC_A_B" stoichiometry="1"/>
+  <speciesReference species="mpC" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>transcription_pC2</ci>
+    <ci>pC_A_B</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="pC_BmpC" name="Transcription from pC_B of mpC">
+ <listOfReactants>
+  <speciesReference species="pC_B" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="pC_B" stoichiometry="1"/>
+  <speciesReference species="mpC" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>transcription_pC3</ci>
+    <ci>pC_B</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="degmpC" name="Degeneration of mpC">
+ <listOfReactants>
+  <speciesReference species="mpC" stoichiometry="1"/>
+ </listOfReactants>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply><times/>
+   <ci>degradation_mpC</ci>
+   <ci>mpC</ci>
+  </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="mpCC" name="Translation of mpC to C">
+ <listOfReactants>
+  <speciesReference species="mpC" stoichiometry="1"/>
+ </listOfReactants>
+ <listOfProducts>
+  <speciesReference species="C" stoichiometry="1"/>
+  <speciesReference species="mpC" stoichiometry="1"/>
+ </listOfProducts>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply>
+    <times/>
+    <ci>translation_pC</ci>
+    <ci>mpC</ci>
+   </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="degA" name="Degeneration of A">
+ <listOfReactants>
+  <speciesReference species="A" stoichiometry="1"/>
+ </listOfReactants>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply><times/>
+   <ci>degradation_A</ci>
+   <ci>A</ci>
+  </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="degB" name="Degeneration of B">
+ <listOfReactants>
+  <speciesReference species="B" stoichiometry="1"/>
+ </listOfReactants>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply><times/>
+   <ci>degradation_B</ci>
+   <ci>B</ci>
+  </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+<reaction id="degC" name="Degeneration of C">
+ <listOfReactants>
+  <speciesReference species="C" stoichiometry="1"/>
+ </listOfReactants>
+ <kineticLaw>
+  <math xmlns="http://www.w3.org/1998/Math/MathML">
+   <apply><times/>
+   <ci>degradation_C</ci>
+   <ci>C</ci>
+  </apply>
+  </math>
+ </kineticLaw>
+</reaction>
+</listOfReactions>
+
+</model>
+</sbml>
