@@ -879,14 +879,17 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		const char *symbol = a->getSymbol().c_str();
 		struct value *v;
 
-		if (!(v = environment_get_value(&sc->global_env,symbol)))
+		snprintf(name_buf,sizeof(name_buf),"___%s",symbol);
+
+		if (!(v = environment_get_value(&sc->global_env,name_buf)))
 		{
-			fprintf(stderr,"An initial assignment refers to a non-existent variable \"%s\"",symbol);
+			fprintf(stderr,"An initial assignment refers to a non-existent variable \"%s\"",name_buf);
 			goto bailout;
 		}
 
 		v->uninitialized = 0;
 		ASTNode *node = a->getMath()->deepCopy();
+		fix_names(node);
 		v->value = evaluate(&sc->global_env,node);
 		if (v->is_species)
 			v->molecules = (int)v->value;
