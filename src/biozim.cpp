@@ -126,7 +126,7 @@ static void usage(char *name)
 			"\t    --force-interpreted   forces the interpreted calculation of the rhs.\n"
 			"\t    --list-values         list all values.\n"
 			"\t    --maxtime             specifies the end time (defaults to 1).\n"
-			"\t    --mean                specifies whether the mean should be calculated when runs > 1."
+			"\t    --mean                specifies whether the mean should be calculated when runs > 1.\n"
 			"\t    --output-time         outputs the current time (stderr).\n"
 			"\t    --plot [sp1,...,spn]  plots the results using gnuplot. Optionally, you can specify\n"
 			"\t                          the species to be plotted.\n"
