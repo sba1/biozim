@@ -24,6 +24,7 @@ sbml.sim<-function(filename,maxtime=1,stochastic=T,runs=1,sample.steps=5000,para
 	}
 
 	print("Calculate")
+	print(cmd.and.args)
 	result.raw<-system(cmd.and.args,intern=T)
 	print("Calculation completed!")
 	
