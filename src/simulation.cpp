@@ -599,7 +599,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			goto bailout;
 		}
 		fix_power_function(formula);
-		fix_names(formula);
 
 		numParameter = kineticLaw->getNumParameters();
 		numReactants = reaction->getNumReactants();
@@ -631,7 +630,11 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 				goto bailout;
 			new_param->setName(new_id);
 
-			if (!(v = environment_add_value(&sc->global_env, new_id)))
+			/* We also add this new parameter as escaped. Formula will be changed with the following call
+			 * to fix_names().
+			 */
+			snprintf(name_buf,sizeof(name_buf),"___%s",new_id);
+			if (!(v = environment_add_value(&sc->global_env, name_buf)))
 			{
 				free(new_id);
 				goto bailout;
@@ -674,6 +677,9 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 			formula->ReplaceArgument(ref->getSpecies(),div);
 		}
+
+		/* Fix the names of the formula */
+		fix_names(formula);
 
 		sc->reactions[i].formula = formula;
 
