@@ -536,11 +536,13 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	{
 		struct value *v;
 		Compartment *c = model->getCompartment(i);
-
-		snprintf(name_buf,sizeof(name_buf),"___%s",&sc->global_env,c->getId().c_str());
+		
+		snprintf(name_buf,sizeof(name_buf),"___%s",c->getId().c_str());
 		if (!(v = environment_add_value(&sc->global_env,name_buf)))
 			goto bailout;
 		environment_set_value_double(v,c->getSize());
+		
+		fprintf(stderr,"%s\n",name_buf);
 	}
 
 	/* Gather species */
