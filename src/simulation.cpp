@@ -396,6 +396,45 @@ static int fix_names(ASTNode *node)
 }
 
 /**
+ * 
+ * @param node
+ * @param m
+ * @return
+ */
+static int replace_function_definitions(ASTNode *node, Model *m)
+{
+	for (int i=0;i<node->getNumChildren();i++)
+	{
+		ASTNode *n = node->getChild(i);
+
+		if (n->getType() == AST_FUNCTION)
+		{
+			/* Check whether the name matches a function */
+			for (int j=0;j<m->getNumFunctionDefinitions();j++)
+			{
+				FunctionDefinition *fd = m->getFunctionDefinition(j);
+				const char *fd_id = fd->getId().c_str(); 
+				if (fd_id)
+				{
+					if (!strcmp(n->getName(),fd_id))
+					{
+						/* Replace the i-th child with the matching function body */
+						node->replaceChild(i,fd->getBody()->deepCopy());
+						break;
+					}
+				}
+			}
+		} else
+		{
+			replace_function_definitions(n,m);
+		}
+	}
+	return 1;
+}
+
+
+
+/**
  * Returns the integer value of the given node
  * or -1, if it is no integer value.
  * 
@@ -480,6 +519,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	unsigned int numParameters;
 	unsigned int numEvents;
 	unsigned int numCompartments;
+	unsigned int numFunctionDefinitions;
 	unsigned int numInitialAssignments;
 	unsigned int i,j,k;
 
@@ -521,6 +561,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	numEvents = model->getNumEvents();
 	numCompartments = model->getNumCompartments();
 	numInitialAssignments = model->getNumInitialAssignments();
+	numFunctionDefinitions = model->getNumFunctionDefinitions();
 
 	value_first = NULL;
 
@@ -541,8 +582,6 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		if (!(v = environment_add_value(&sc->global_env,name_buf)))
 			goto bailout;
 		environment_set_value_double(v,c->getSize());
-		
-		fprintf(stderr,"%s\n",name_buf);
 	}
 
 	/* Gather species */
@@ -599,6 +638,9 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			goto bailout;
 		}
 		fix_power_function(formula);
+//		fprintf(stderr,"bef: %s\n",SBML_formulaToString(formula));
+		replace_function_definitions(formula,model);
+//		fprintf(stderr,"aft: %s\n",SBML_formulaToString(formula));
 
 		numParameter = kineticLaw->getNumParameters();
 		numReactants = reaction->getNumReactants();
