@@ -1,6 +1,7 @@
 /* simulation.cpp */
 
 #include <dlfcn.h>
+#include <errno.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -13,7 +14,6 @@
 #include <cvode/cvode_dense.h>
 
 /* Own headers */
-#include "sbml/SBMLParser.h"
 #include "ode/ODESettings.h"
 
 #include "simulation.h"
@@ -503,7 +503,7 @@ static int simulation_context_get_values(struct simulation_context *sc, ASTNode 
 /**
  * Create the simulation context from an SBML file.
  *
- * @param filename
+ * @param filename the name of the file which is to be read. Use NULL if you want to read from stdin.
  * @param assignment a single linked list describing some variable assignments that are applied
  *        before the initial assignments of the SBML file.
  * @return the context to be freed with simulation_context_free or
@@ -511,8 +511,7 @@ static int simulation_context_get_values(struct simulation_context *sc, ASTNode 
  */
 struct simulation_context *simulation_context_create_from_sbml_file(const char *filename, struct variable_assignment *assignment)
 {
-	SBMLParser *parser = NULL;
-	SBMLDocument *doc;
+	SBMLDocument *doc = NULL;
 	Model *model;
 
 	char name_buf[256];
@@ -530,6 +529,8 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 	struct value *value_first;
 
+	SBMLReader reader;
+
 	/* Allocate memory for context */
 	if (!(sc = (struct simulation_context*)malloc(sizeof(*sc))))
 	{
@@ -541,18 +542,48 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	/* Initialize global environment */
 	environment_init(&sc->global_env, NULL);
 
-	/* Prepare SBML */
-	if (!(parser = new SBMLParser(filename)))
+	if (filename)
 	{
-		fprintf(stderr,"Could not parse \"%s\"\n",filename);
-		goto bailout;
+		FILE *f = fopen(filename,"r");
+		if (!f)
+		{
+			fprintf(stderr,"File \"%s\" couldn't be opened: %s\n", filename, strerror(errno));
+			goto bailout;
+		}
+		fclose(f);
+		doc = reader.readSBML(filename);
+	} else
+	{
+		char *contents = NULL;
+		int contents_allocated = 32768;
+		int contents_len = 0;
+
+		if (!(contents = (char*)malloc(32768)))
+			goto bailout;
+
+		while (!feof(stdin))
+		{
+			int r;
+
+			if ((r=fread(&contents[contents_len],1,contents_allocated-contents_len,stdin)>0))
+			{
+				contents_len += r;
+				contents_allocated *= 2;
+				char *new_contents = (char*)realloc(contents,contents_allocated);
+				if (!new_contents)
+				{
+					free(contents);
+					goto bailout;
+				}
+			}
+		}
+
+		doc = reader.readSBMLFromString(contents);
+		free(contents);
 	}
-
-	if (!(doc = parser->getSBMLDocument()))
-		goto bailout;
-
-	if (verbose)
-		parser->debugOutputSBML();
+	
+	if (!doc) goto bailout;
+	doc->printErrors(cerr);
 
 	if (!(model = doc->getModel()))
 		return 0;
@@ -641,9 +672,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			goto bailout;
 		}
 		fix_power_function(formula);
-//		fprintf(stderr,"bef: %s\n",SBML_formulaToString(formula));
 		replace_function_definitions(formula,model);
-//		fprintf(stderr,"aft: %s\n",SBML_formulaToString(formula));
 
 		numParameter = kineticLaw->getNumParameters();
 		numReactants = reaction->getNumReactants();
@@ -1013,11 +1042,11 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		goto bailout;
 	}
 
-	delete parser;
+	delete doc;
 	return sc;
 
 bailout:
-	if (parser) delete parser;
+	if (doc) delete doc;
 	return NULL;
 }
 

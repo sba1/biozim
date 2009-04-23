@@ -12,33 +12,27 @@
 
 extern int verbose;
 
-SBMLParser::SBMLParser(const char *filename) {
-	this->fname = filename;
-	this->document = NULL;
-}
-
 SBMLParser::~SBMLParser()
 {
 	if (document != NULL)
 		delete document;
 }
 
-SBMLDocument *SBMLParser::getSBMLDocument() {
-	if (this->document == NULL)
-		inputSBMLDocument();
+SBMLDocument *SBMLParser::getSBMLDocument()
+{
 	return document;
 }
 
 
 
-void SBMLParser::inputSBMLDocument()
+void SBMLParser::inputSBMLDocument(const char *fname)
 {
 	SBMLReader *reader;
 	unsigned long start, stop;
 	start = getCurrentMillis();
 	
 	reader = new SBMLReader();
-	document = reader->readSBML(this->fname);
+	document = reader->readSBML(fname);
 	stop = getCurrentMillis();
 	
 	unsigned int errors = document->getNumErrors();
@@ -46,7 +40,7 @@ void SBMLParser::inputSBMLDocument()
 	if (verbose)
 	{
 		cout << endl;
-		cout << "            filename: "<< this->fname            << endl;
+		cout << "            filename: "<< fname            << endl;
 		cout << "           file size: "<< getFileSize(fname)     << endl;
 		cout << "      read time (ms): " << stop - start          << endl;
 		cout << " validation error(s): " << errors                << endl;
@@ -57,16 +51,42 @@ void SBMLParser::inputSBMLDocument()
 	delete reader; 
 }
 
+void SBMLParser::inputSBMLDocumentFromString(const char *str)
+{
+	SBMLReader *reader;
+	unsigned long start, stop;
+	start = getCurrentMillis();
+	
+	reader = new SBMLReader();
+	document = reader->readSBMLFromString(str);
+	stop = getCurrentMillis();
+	
+	unsigned int errors = document->getNumErrors();
+
+	if (verbose)
+	{
+		cout << endl;
+		cout << "            filename: <stdin>" << endl;
+		cout << "           file size: "<< strlen(str)    << endl;
+		cout << "      read time (ms): " << stop - start          << endl;
+		cout << " validation error(s): " << errors                << endl;
+		cout << endl;
+	}
+
+	document->printErrors(cerr);
+	delete reader; 
+	
+}
 
 void SBMLParser::debugOutputSBML()
 {
 	if (this->document == NULL)
-			inputSBMLDocument();
+		return;
+
 	unsigned int level   = document->getLevel  ();
 	unsigned int version = document->getVersion();
 
 	cout << endl
-     		<< "File: " << fname
      		<< " (Level " << level << ", version " << version << ")" << endl;
 
 	Model* model = document->getModel();

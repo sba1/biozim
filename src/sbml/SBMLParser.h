@@ -15,18 +15,17 @@
 class SBMLParser {
 	
 private:
-	const char *fname;
 	SBMLDocument *document;
 	
 public:
-	SBMLParser(const char *filename);
 	~SBMLParser();
 	SBMLDocument *getSBMLDocument();
 	void debugOutputSBML();
 	
 	
 private:
-	void inputSBMLDocument();
+	void inputSBMLDocument(const char *filename);
+	void inputSBMLDocumentFromString(const char *str);
 	unsigned long getFileSize(const char* filename);
 	unsigned long getCurrentMillis();
 	

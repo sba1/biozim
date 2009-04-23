@@ -423,15 +423,34 @@ static void parse_args(int argc, char *argv[])
 		}
 		else
 		{
-			if (strcmp(argv[i],"-"))
+			if (!strcmp(argv[i],"-"))
 			{
-				model_filename = argv[i];
-				filename_given = 1;
+				if (!filename_given)
+				{
+					filename_given = 1;
+					model_filename = NULL;
+				} else
+				{
+					fprintf(stderr,"Stdin has been ignored!\n");
+				}
 			} else
 			{
-				fprintf(stderr,"Unknown parameter \"%s\"\n",argv[i]);
-				usage(argv[0]);
-				exit(-1);
+				if (strncmp(argv[i],"--",2))
+				{
+					if (!filename_given)
+					{
+						model_filename = argv[i];
+						filename_given = 1;
+					} else
+					{
+						fprintf(stderr,"Filename \"%s\" has been ignored!\n",argv[i]);
+					}
+				} else
+				{
+					fprintf(stderr,"Unknown parameter \"%s\"\n",argv[i]);
+					usage(argv[0]);
+					exit(-1);
+				}
 			}
 		}
 	}
