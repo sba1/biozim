@@ -300,8 +300,11 @@ static ASTNode *get_stoichiometry_ast(const SpeciesReference *ref)
 static void simulation_context_add_reference(struct simulation_context *sc, SpeciesReference *ref, const ASTNode *formula, ASTNodeType_t type)
 {
 	struct value *v;
+	char name_buf[256];
 
-	if ((v = environment_get_value(&sc->global_env, ref->getSpecies().c_str())))
+	snprintf(name_buf,sizeof(name_buf),"___%s",ref->getSpecies().c_str());
+
+	if ((v = environment_get_value(&sc->global_env, name_buf)))
 	{
 		ASTNode *prev, *minus, *copy, *stoich;
 
@@ -900,7 +903,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	sc->events[i] = ev;
 	}
 
-	environment_optimize(&sc->global_env);
+//	environment_optimize(&sc->global_env);
 
 	/* Perform given assignments */
 	while (assignment)
@@ -971,7 +974,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			sc->num_fixed++;
 	}
 	sc->num_unfixed = sc->global_env.num_values - sc->num_fixed;
-
+	
 	if (!(sc->unfixed = (struct value**)malloc(sizeof(sc->unfixed[0])*sc->num_unfixed)))
 	{
 		fprintf(stderr,"Could not parse \"%s\"\n",filename);
