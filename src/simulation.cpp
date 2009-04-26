@@ -165,7 +165,7 @@ struct reaction
 
 /**
  * Add a new parameter to the given value.
- *  
+ *
  * @param env
  * @param p
  * @return
@@ -204,7 +204,7 @@ static struct value *simulation_context_add_species(struct simulation_context *s
 	char name_buf[256];
 
 	snprintf(name_buf,sizeof(name_buf),"___%s",s->getId().c_str());
-	
+
 	if (!(v = environment_add_value(&sc->global_env,name_buf)))
 		return NULL;
 
@@ -291,7 +291,7 @@ static ASTNode *get_stoichiometry_ast(const SpeciesReference *ref)
 /**
  * For the given SpeciesReference add the formula
  * to the right part of its ODE.
- * 
+ *
  * @param sc
  * @param ref
  * @param formula
@@ -354,7 +354,7 @@ static void simulation_context_add_reference(struct simulation_context *sc, Spec
 
 /**
  * Replaces the POWER with
- *  
+ *
  * @param node
  */
 static void fix_power_function(ASTNode *node)
@@ -372,9 +372,9 @@ static void fix_power_function(ASTNode *node)
 }
 
 /**
- * Preprend a underscore to all names to avoid possible clashes. 
- * 
- * @param 
+ * Preprend a underscore to all names to avoid possible clashes.
+ *
+ * @param
  */
 static int fix_names(ASTNode *node)
 {
@@ -382,7 +382,7 @@ static int fix_names(ASTNode *node)
 	{
 		const char *name = node->getName();
 		char *new_name;
-		
+
 		if (asprintf(&new_name,"___%s",name) == -1)
 			return 0;
 
@@ -395,11 +395,11 @@ static int fix_names(ASTNode *node)
 		ASTNode *n = node->getChild(i);
 		fix_names(n);
 	}
-	
+
 }
 
 /**
- * 
+ *
  * @param node
  * @param m
  * @return
@@ -416,7 +416,7 @@ static int replace_function_definitions(ASTNode *node, Model *m)
 			for (int j=0;j<m->getNumFunctionDefinitions();j++)
 			{
 				FunctionDefinition *fd = m->getFunctionDefinition(j);
-				const char *fd_id = fd->getId().c_str(); 
+				const char *fd_id = fd->getId().c_str();
 				if (fd_id)
 				{
 					if (!strcmp(n->getName(),fd_id))
@@ -440,7 +440,7 @@ static int replace_function_definitions(ASTNode *node, Model *m)
 /**
  * Returns the integer value of the given node
  * or -1, if it is no integer value.
- * 
+ *
  * @param node
  * @return
  */
@@ -457,7 +457,7 @@ int get_AST_integer_value(ASTNode *node)
 
 /**
  * Returns all the values that can be found.
- * 
+ *
  * @param sc
  * @param node
  * @param values_ptr
@@ -468,14 +468,14 @@ static int simulation_context_get_values(struct simulation_context *sc, ASTNode 
 {
 	switch (node->getType())
 	{
-		case	AST_NAME_TIME:	
+		case	AST_NAME_TIME:
 		case	AST_NAME:
 				{
 					struct value **values = *values_ptr;
 					int values_len = *values_len_ptr;
 
 					const char *name = node->getName();
-					
+
 					struct value *v = environment_get_value(&sc->global_env,name);
 					if (v)
 					{
@@ -483,7 +483,7 @@ static int simulation_context_get_values(struct simulation_context *sc, ASTNode 
 						if (!(values = (struct value**)realloc(values,sizeof(struct value*)*values_len)))
 							return 0;
 						values[values_len-1] = v;
-						
+
 						*values_ptr = values;
 						*values_len_ptr = values_len;
 					}
@@ -581,7 +581,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 		doc = reader.readSBMLFromString(contents);
 		free(contents);
 	}
-	
+
 	if (!doc) goto bailout;
 	doc->printErrors(cerr);
 
@@ -611,7 +611,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	{
 		struct value *v;
 		Compartment *c = model->getCompartment(i);
-		
+
 		snprintf(name_buf,sizeof(name_buf),"___%s",c->getId().c_str());
 		if (!(v = environment_add_value(&sc->global_env,name_buf)))
 			goto bailout;
@@ -778,7 +778,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 				sc->reactions[i].reactants[j].stoich_value = get_AST_integer_value(sc->reactions[i].reactants[j].stoich);;
 			} else
 			{
-				fprintf(stderr,"Couldn't fine variable named \"%s\"\n",name_buf);
+				fprintf(stderr,"Couldn't find variable named \"%s\"\n",name_buf);
 				goto bailout;
 			}
 		}
@@ -790,7 +790,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
 			SpeciesReference *ref = reaction->getProduct(j);
 			simulation_context_add_reference(sc, ref, formula, AST_PLUS);
-			
+
 			snprintf(name_buf,sizeof(name_buf),"___%s",ref->getSpecies().c_str());
 
 			if ((ref_v = environment_get_value(&sc->global_env,name_buf)))
@@ -871,14 +871,14 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 
  		struct value **values_in_trigger = NULL;
  		int values_in_trigger_len = 0;
-	 		
+
  		simulation_context_get_values(sc,ev->trigger,&values_in_trigger,&values_in_trigger_len);
 
 	 	/* Find out on which reactions this event should be considered add a notice to the reaction */
 		for (int l=0;l<values_in_trigger_len;l++)
 		{
 			struct value *vit = values_in_trigger[l];
-			
+
 			if (vit == sc->time)
 			{
 				sc->time_event = ev;
@@ -915,7 +915,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 	{
 	 		EventAssignment *ea = e->getEventAssignment(j);
 	 		const char *name = ea->getVariable().c_str();
-	 		
+
 	 		snprintf(name_buf,sizeof(name_buf),"___%s",name);
 
 	 		if (!(ev->assignments[j].value = environment_get_value(&sc->global_env, name_buf)))
@@ -923,7 +923,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 	 			fprintf(stderr,"Couldn't find variable \"%s\"\n",name_buf);
 	 			goto bailout;
 	 		}
-	 		
+
 
 	 		if (ea->getMath())
 	 			ev->assignments[j].math = ea->getMath()->deepCopy();
@@ -1003,7 +1003,7 @@ struct simulation_context *simulation_context_create_from_sbml_file(const char *
 			sc->num_fixed++;
 	}
 	sc->num_unfixed = sc->global_env.num_values - sc->num_fixed;
-	
+
 	if (!(sc->unfixed = (struct value**)malloc(sizeof(sc->unfixed[0])*sc->num_unfixed)))
 	{
 		fprintf(stderr,"Could not parse \"%s\"\n",filename);
@@ -1570,7 +1570,7 @@ static void simulation_context_det_finish_jit(struct simulation_context *sc)
 
 /**
  * Checkes whether the trigger of the given event.
- * 
+ *
  * @param sc
  * @param ev
  * @param value_space
@@ -1612,7 +1612,7 @@ static int simulation_context_check_trigger(struct simulation_context *sc, struc
  * Perform the event handling. This encompasses the
  * evaluation of its trigger. An event is fired, iff
  * it goes from false to true.
- * 
+ *
  * @param sc
  * @param t
  * @param value_space
@@ -1813,7 +1813,7 @@ timeloop:
 			tcb -= tdelta;
 			tcb1 += tdelta;
 			if (tcb1 > tmax) break;
-			
+
 			if (sc->time_event)
 			{
 				sc->time->value = tcb1;
@@ -1886,7 +1886,7 @@ timeloop:
 
 /**
  * Callback for the gillespie algorithm.
- * 
+ *
  * @param t
  * @param states
  * @param userdata
@@ -1910,7 +1910,7 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
 
 /**
  * Make the variable name usable in a C "script".
- * 
+ *
  * @param buf
  * @param buf_len
  * @param name
@@ -1918,7 +1918,7 @@ static int gillespie_jit_callback(double t, int *states, void *userdata)
 static char *escape_variable_name(char *buf, int buf_len, const char *name)
 {
 	snprintf(buf,sizeof(buf_len),"_%s",name);
-	
+
 	return buf;
 }
 
@@ -1982,7 +1982,7 @@ static void simulation_write_propensity_calculation(FILE *out, struct simulation
 static int simulation_integrate_stochastic_quick(struct simulation_context *sc, struct integration_settings *settings, int gen_jit)
 {
 	unsigned int i,j;
-	
+
 	double t;
 	double tmax = settings->time;
 
@@ -2094,7 +2094,7 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 	fprintf(out,"#define child1(i) (2*(i)+1)\n");
 	fprintf(out,"#define child2(i) (2*(i)+2)\n");
 	fprintf(out,"#define parent(i) (((i)-1)/2)\n\n");
-	
+
 	fprintf(out,"#define gt(a,b) (a)>(b)\n");
 	fprintf(out,"#define geq(a,b) (a)>=(b)\n");
 	fprintf(out,"#define lt(a,b) (a)<(b)\n\n");
@@ -2198,7 +2198,7 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 		/* Trigger */
 		fprintf(out,"\t\t\t\tif (%s)\n",SBML_formulaToString(ev->trigger));
 		fprintf(out,"\t\t\t\t{\n");
-		
+
 		fprintf(out,"\t\t\t\t\tif (!events_active[%d])\n",ev->index);
 		fprintf(out,"\t\t\t\t\t{\n");
 		fprintf(out,"\t\t\t\t\t\tevents_active[%d]=1;",ev->index);
@@ -2235,7 +2235,7 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 			simulation_write_propensity_calculation(out,sc,ev_changed_list[j], start_idx,1);
 #ifdef USE_BINARY
 			int n = ev_changed_list[j] + leafs - 1;
-	
+
 			while ((n = parent(n)))
 				ev_changed_array[n] = 1;
 			ev_changed_array[0] = 1; /* Mark the root */
@@ -2368,7 +2368,7 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 			for (unsigned int j=0;j<ev_changed_list_size;j++)
 			{
 				int n = ev_changed_list[j] + leafs - 1;
-		
+
 				while ((n = parent(n)))
 					ev_changed_array[n] = 1;
 			}
@@ -2617,7 +2617,7 @@ static int simulation_integrate_stochastic_quick(struct simulation_context *sc, 
 		printf("\n");
 */
 	}
-	
+
 	simulation_run_context_delete(src);
 //	free(sc->value_space);
 //	sc->value_space = NULL;
@@ -2838,7 +2838,7 @@ out:
 
 /**
  * Frees all memory associated with a simulation.
- *  
+ *
  * @param sc
  */
 void simulation_context_free(struct simulation_context *sc)
@@ -2874,7 +2874,7 @@ void simulation_context_free(struct simulation_context *sc)
 
 	for (i=0;i<sc->global_env.num_values;i++)
 		delete sc->global_env.values[i]->node;
-	
+
 	if (sc->reactions)
 	{
 		for (i=0;i<sc->num_reactions;i++)
