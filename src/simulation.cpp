@@ -215,6 +215,7 @@ static struct value *simulation_context_add_species(struct simulation_context *s
 	} else
 	{
 		v->value = s->getInitialConcentration();
+		v->molecules = s->getInitialConcentration();
 	}
 	v->fixed = s->getBoundaryCondition();
 	v->is_species = 1;
