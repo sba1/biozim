@@ -15,7 +15,7 @@ create.frame <- function(result.raw)
 # Simulate the given SBML file
 sbml.sim<-function(filename,maxtime=1,stochastic=T,runs=1,sample.steps=5000,params=NULL)
 {
-	cmd<-"./sbml2ode";
+	cmd<-"./biozim";
 	cmd.and.args<-paste(cmd,"--stochastic","--maxtime", maxtime, "--runs",runs,"--sample-steps",sample.steps,filename);
 
 	if (!is.null(params))
