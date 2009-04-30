@@ -125,6 +125,7 @@ static void usage(char *name)
 			"\t    --error               specifies the error (absolute and relative) given in double.\n"
 			"\t    --force-interpreted   forces the interpreted calculation of the rhs.\n"
 			"\t    --list-values         list all values.\n"
+			"\t    --interleaved         processes the stochastic simulation in an interleaved manner.\n"
 			"\t    --num-threads         number of (omp) threads to be used%s.\n"
 			"\t    --maxtime             specifies the end time (defaults to 1).\n"
 			"\t    --mean                specifies whether the mean should be calculated when runs > 1.\n"
