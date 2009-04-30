@@ -41,6 +41,7 @@ AC_FUNC_VPRINTF
 AC_CHECK_FUNCS([gettimeofday memset pow strchr strdup strtol])
 
 AC_PROG_SWIG
+AX_OPENMP
 
 # TODO: Add better sundials stuff
 SUNDIALS_CFLAGS=`sundials-config -m cvode -t s -l c -s cflags`
