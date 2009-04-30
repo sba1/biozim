@@ -125,6 +125,7 @@ static void usage(char *name)
 			"\t    --error               specifies the error (absolute and relative) given in double.\n"
 			"\t    --force-interpreted   forces the interpreted calculation of the rhs.\n"
 			"\t    --list-values         list all values.\n"
+			"\t    --num-threads         number of (omp) threads to be used%s.\n"
 			"\t    --maxtime             specifies the end time (defaults to 1).\n"
 			"\t    --mean                specifies whether the mean should be calculated when runs > 1.\n"
 			"\t    --output-time         outputs the current time (stderr).\n"
@@ -139,7 +140,13 @@ static void usage(char *name)
 			"\t    --stiff               use solver for stiff ODEs.\n"
 			"\t    --stochastic          apply stochastic simulation.\n"
 			"\t    --verbose             verbose output.\n",
-			name);
+			name,
+#ifdef 	_OPENMP
+			"",
+#else
+			" (ignored, as no OpenMP support is compiled in)"
+#endif
+			);
 
 	exit(1);
 }
