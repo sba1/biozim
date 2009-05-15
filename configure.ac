@@ -50,10 +50,52 @@ SUNDIALS_LIBS=`sundials-config -m cvode -t s -l c -s libs`
 AC_SUBST(SUNDIALS_CFLAGS)
 AC_SUBST(SUNDIALS_LIBS)
 
+dnl ******************************
+dnl libsbml checking
+dnl ******************************
 
 PKG_CHECK_MODULES(LIBSBML, [libsbml >= 3.3.2])
-PKG_CHECK_MODULES(LUA5_1, [lua5.1])
+
+dnl ******************************
+dnl liblua5.1 checking
+dnl ******************************
+
+AC_ARG_WITH(lua5.1,
+		AC_HELP_STRING([--with-lua5.1],[include support for lua5.1 (default is auto)]),
+		[with_lua=$withval],[with_lua=auto])
+
+if test "x$with_lua" != "xno" ; then
+	PKG_CHECK_MODULES(LUA5_1, [lua5.1], enable_lua=yes, enable_lua=no)
+	if test "x$enable_lua" != "xyes" ; then
+		if test "x$with_lua" == "xyes"; then
+			dnl For the error message
+			PKG_CHECK_MODULES(LUA5_1, [lua5.1])
+		fi
+	fi
+else
+	dnl asked to ignore lua
+	enable_lua=no
+fi
+if test "x$enable_lua" == "xyes" ; then
+	AC_DEFINE(ENABLE_LIBLUA5_1, 1, [Enable support for liblua 5.1])
+fi
+
+dnl ******************************
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([src/Makefile])
 AC_OUTPUT
+
+echo "
+Configuration: 
+        Source code location:     ${srcdir}
+        Destination path prefix:  ${prefix}
+        C Compiler:               ${CC}
+        C++ Compiler:             ${CXX}
+        CPPFLAGS:                 ${CPPFLAGS}
+        CXXFLAGS:                 ${CXXFLAGS}
+        CFLAGS:                   ${CFLAGS}
+        LDFLAGS:                  ${LDFLAGS}
+
+        Enable Lua 5.1 support:   ${enable_lua}    
+"
