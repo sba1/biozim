@@ -77,7 +77,7 @@ else
 	enable_lua=no
 fi
 if test "x$enable_lua" == "xyes" ; then
-	AC_DEFINE(ENABLE_LIBLUA5_1, 1, [Enable support for liblua 5.1])
+	AC_DEFINE(HAVE_LIBLUA, 1, [Enable support for liblua 5.1])
 fi
 
 dnl ******************************
