@@ -79,11 +79,15 @@ static char **plot_species;
 /**
  * @brief Specifies the number of runs to be performed
  *
- * @note Values greater than 1 make sense only when simulation
+ * @note Values greater than 1 make only sense when simulation
  * runs in stochastic mode
  */
 static int runs = 1;
 
+/**
+ * @brief Stochastic simulation is performed in a interleaved manner.
+ */
+static int interleaved = 1;
 
 /**
  * @brief indicates whether the mean should be calculated. Only suitable when runs > 1.
@@ -426,6 +430,9 @@ static void parse_args(int argc, char *argv[])
 				}
 			}
 			error = strtod(nr_arg, NULL);
+		} else if (!strcmp(argv[i],"--interleaved"))
+		{
+			interleaved = 1;
 		}
 		else
 		{
@@ -893,6 +900,7 @@ int main(int argc, char **argv)
 	settings.force_interpreted = no_jit;
 	settings.stochastic = stochastic;
 	settings.stiff = stiff;
+	settings.interleaved = 1;
 
 	if (take_mean || take_stddev)
 	{

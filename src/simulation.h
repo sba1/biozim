@@ -30,6 +30,9 @@ struct integration_settings
 
 	/* Use stochastic simulator */
 	int stochastic;
+	
+	/* Use interleaved calling of callback */
+	int interleaved;
 
 	unsigned int seed;
 };
