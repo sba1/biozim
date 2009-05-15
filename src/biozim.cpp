@@ -8,8 +8,6 @@
 
 #include <config.h>
 
-#define HAVE_LIBGMP
-
 #ifdef HAVE_LIBGMP
 #include <gmp.h>
 #endif
