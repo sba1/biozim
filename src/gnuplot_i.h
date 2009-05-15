@@ -168,7 +168,7 @@ void gnuplot_close(gnuplot_ctrl * handle);
   back from gnuplot.
  */
 /*--------------------------------------------------------------------------*/
-void gnuplot_cmd(gnuplot_ctrl *  handle, char *  cmd, ...);
+void gnuplot_cmd(gnuplot_ctrl *  handle, const char *  cmd, ...);
 
 /*-------------------------------------------------------------------------*/
 /**

@@ -228,7 +228,7 @@ void gnuplot_close(gnuplot_ctrl * handle)
  */
 /*--------------------------------------------------------------------------*/
 
-void gnuplot_cmd(gnuplot_ctrl *  handle, char *  cmd, ...)
+void gnuplot_cmd(gnuplot_ctrl *  handle, const char *  cmd, ...)
 {
     va_list ap ;
     char    local_cmd[GP_CMD_SIZE];

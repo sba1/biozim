@@ -141,7 +141,7 @@ static void usage(char *name)
 			"\t    --verbose             verbose output.\n",
 			name,
 #ifdef 	_OPENMP
-			"",
+			""
 #else
 			" (ignored, as no OpenMP support is compiled in)"
 #endif
